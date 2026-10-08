@@ -12,7 +12,7 @@
 		<PackageProjectUrl>https://github.com/Burkhardt/RaiGuard</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/Burkhardt/RaiGuard.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
-		<PackageTags>raiguard;roslyn;analyzer;codefix;guardrails;linter;raikeep</PackageTags>
+		<PackageTags>raiguard;roslyn;analyzer;codefix;guardrails;raikeep</PackageTags>
 		<Description>Opinionated Roslyn analyzer and code-fix provider enforcing framework physics and conventions across RAIkeep solutions.</Description>
 		<DevelopmentDependency>true</DevelopmentDependency>
 		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>

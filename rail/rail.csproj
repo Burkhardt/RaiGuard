@@ -26,7 +26,7 @@
 		<PackAsTool>true</PackAsTool>
 		<ToolCommandName>rail</ToolCommandName>
 		<PackageOutputPath>../artifacts/nuget</PackageOutputPath>
-		<PackageTags>raiguard;rail;roslyn;linter;guardrails;cli;tool;raikeep</PackageTags>
+		<PackageTags>raiguard;rail;roslyn;guardrails;analyzer;cli;tool;raikeep</PackageTags>
 		<DeployToUsrLocalBin>false</DeployToUsrLocalBin>
 
 		<RAIkeepRoot Condition="'$(RAIkeepRoot)' == '' and Exists('../../JsonPit/JsonPit.csproj')">../..</RAIkeepRoot>

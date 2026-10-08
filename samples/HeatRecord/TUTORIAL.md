@@ -8,7 +8,7 @@ A comprehensive master tutorial demonstrating **JsonPit's** open-world sparse at
 
 Modern cloud-synced applications require two architectural superpowers:
 1. **Open-World Data Modeling**: The ability to record evolving multi-year temporal observations (such as 10 years of daily heat extremes) without rigid schema migrations or sparse SQL null columns.
-2. **Framework Physics Enforcement**: Strict compile-time and linter guardrails that prevent LLMs and developers from backsliding into legacy Base Class Library (BCL) primitives (`System.IO.Path.Combine`, `Directory.CreateDirectory`, `File.WriteAllText`, space indentation).
+2. **Framework Physics Enforcement**: Strict compile-time and analyzer guardrails that prevent LLMs and developers from backsliding into legacy Base Class Library (BCL) primitives (`System.IO.Path.Combine`, `Directory.CreateDirectory`, `File.WriteAllText`, space indentation).
 
 This tutorial builds the **`HeatRecord`** sample application (`samples/HeatRecord`) to illustrate both superpowers across seven end-to-end chapters.
 
@@ -183,9 +183,9 @@ rail check samples/HeatRecord/Program.Naive.cs
 ### 4.1 Diagnostic Output
 
 ```text
- ──────────────────────────────────────────
-rail - RaiGuard Roslyn Guardrails & Linter
- ──────────────────────────────────────────
+ ───────────────────────────────────────────────────────────────────────
+rail - RaiGuard Roslyn Guardrails & Analyzer for the RAIkeep Framework
+ ───────────────────────────────────────────────────────────────────────
  Program.Naive.cs(15,38): warning RAI003: 'System.IO.Path.Combine' is prohibited; use 'RaiPath' or 'RaiRelPath' with operator '/' instead
  Program.Naive.cs(15,56): warning RAI001: 'System.IO.Directory.GetCurrentDirectory' is prohibited; use 'RaiPath' methods instead (e.g., RaiPath.EnumerateDirectories or RaiPath.EnumerateFiles)
  Program.Naive.cs(16,40): warning RAI003: 'System.IO.Path.Combine' is prohibited; use 'RaiPath' or 'RaiRelPath' with operator '/' instead
@@ -224,9 +224,9 @@ rail fix samples/HeatRecord/Program.Naive.cs --dry-run
 
 Output:
 ```text
- ──────────────────────────────────────────
-rail - RaiGuard Roslyn Guardrails & Linter
- ──────────────────────────────────────────
+ ───────────────────────────────────────────────────────────────────────
+rail - RaiGuard Roslyn Guardrails & Analyzer for the RAIkeep Framework
+ ───────────────────────────────────────────────────────────────────────
  [DryRun] Would fix 9 violation(s) in samples/HeatRecord/Program.Naive.cs
  Dry run complete. 9 fix(es) candidate(s) detected.
 ```

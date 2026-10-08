@@ -100,9 +100,35 @@ public static class Messages
 	{
 		Console.Write($"{Icons.Banner} ");
 		WriteLine(text);
-		Console.WriteLine(text);
+		WriteBannerContent(text);
 		Console.Write($"{Icons.Banner} ");
 		WriteLine(text);
+	}
+
+	private static void WriteBannerContent(string text)
+	{
+		var oldColor = Console.ForegroundColor;
+		int index = 0;
+		while (index < text.Length)
+		{
+			int nextRail = text.IndexOf("rail", index, StringComparison.Ordinal);
+			if (nextRail < 0)
+			{
+				Console.Write(text[index..]);
+				break;
+			}
+
+			if (nextRail > index)
+			{
+				Console.Write(text[index..nextRail]);
+			}
+
+			Console.ForegroundColor = ConsoleColor.Green;
+			Console.Write("rail");
+			Console.ForegroundColor = oldColor;
+			index = nextRail + 4;
+		}
+		Console.WriteLine();
 	}
 
 	public static void WriteHelp()
@@ -114,6 +140,7 @@ public static class Messages
 public static class Program
 {
 	private const string CliSubscriber = "rail";
+	private const string BannerTitle = "rail - RaiGuard Roslyn Guardrails & Analyzer for the RAIkeep Framework";
 	private static readonly string[] Commands = ["check", "fix", "rules"];
 	private static readonly string[] SwitchesWithValues = ["-p", "--path", "--rule"];
 
@@ -129,7 +156,7 @@ public static class Program
 		{
 			if (!HasOption(args, "-n", "-l", "--nologo"))
 			{
-				Messages.WriteBanner("rail - RaiGuard Roslyn Guardrails & Linter");
+				Messages.WriteBanner(BannerTitle);
 			}
 			Messages.WriteHelp();
 			return 0;
@@ -158,7 +185,7 @@ public static class Program
 
 		if (Messages.Banner && !Messages.Json)
 		{
-			Messages.WriteBanner("rail - RaiGuard Roslyn Guardrails & Linter");
+			Messages.WriteBanner(BannerTitle);
 		}
 
 		return command switch
@@ -181,7 +208,7 @@ public static class Program
 
 		if (Messages.Banner && !Messages.Json)
 		{
-			Messages.WriteBanner("rail - RaiGuard Roslyn Guardrails & Linter");
+			Messages.WriteBanner(BannerTitle);
 		}
 
 		// Default action is check
