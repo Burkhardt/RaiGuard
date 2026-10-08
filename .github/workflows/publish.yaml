@@ -1,4 +1,5 @@
 name: Publish Packages to NuGet.org
+run-name: "Release ${{ github.ref_name }}"
 
 on:
   push:
