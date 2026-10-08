@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <PackageId>RaiGuard</PackageId>
+    <Description>Opinionated Roslyn analyzer enforcing framework physics for Rai libraries.</Description>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RaiGuard.Core\RaiGuard.Core.csproj" />
+    <ProjectReference Include="..\RaiGuard.CodeFixes\RaiGuard.CodeFixes.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(OutputPath)\RaiGuard.Core.dll" Pack="true" PackagePath="analyzers/dotnet/cs" />
+    <None Include="$(OutputPath)\RaiGuard.CodeFixes.dll" Pack="true" PackagePath="analyzers/dotnet/cs" />
+  </ItemGroup>
+
+</Project>

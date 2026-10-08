@@ -1,0 +1,46 @@
+# macOS
+.DS_Store
+
+# .NET build output
+bin/
+obj/
+artifacts/
+
+# Publish output
+publish/
+
+# Test and coverage output
+TestResults/
+BenchmarkDotNet.Artifacts/
+*.trx
+*.coverage
+*.coveragexml
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider / ReSharper
+.idea/
+_ReSharper*/
+*.DotSettings.user
+
+# VS Code
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+
+# Repo-specific generated data
+pits/file/
+pits/output/
+
+# NuGet local packages
+*.nupkg
+*.snupkg
+
+# Logs
+*.log

@@ -1,0 +1,15 @@
+<Solution>
+	<Folder Name="/cli/">
+		<Project Path="rail/rail.csproj" />
+		<Project Path="rail.Tests/rail.Tests.csproj" />
+	</Folder>
+	<Folder Name="/roslyn/">
+		<Project Path="src/RaiGuard.Core/RaiGuard.Core.csproj" />
+		<Project Path="src/RaiGuard.CodeFixes/RaiGuard.CodeFixes.csproj" />
+		<Project Path="src/RaiGuard.Package/RaiGuard.Package.csproj" />
+		<Project Path="tests/RaiGuard.Tests/RaiGuard.Tests.csproj" />
+	</Folder>
+	<Folder Name="/samples/">
+		<Project Path="samples/HeatRecord/HeatRecord.csproj" />
+	</Folder>
+</Solution>

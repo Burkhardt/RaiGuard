@@ -1,0 +1,118 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<Title>RaiGuard</Title>
+		<Description>RAIkeep opinionated Roslyn linter and guardrails CLI. Enforces framework physics (RaiPath, JsonPit, etc.) and refactors prohibited patterns across solutions.</Description>
+		<Version>4.5.5</Version>
+		<AssemblyVersion>$(Version)</AssemblyVersion>
+		<FileVersion>$(Version)</FileVersion>
+		<InformationalVersion>$(Version)</InformationalVersion>
+		<PackageId>RaiGuard.Cli</PackageId>
+		<Authors>Rainer Burkhardt</Authors>
+		<Copyright>© Rainer Burkhardt</Copyright>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageIcon>HardCastle.png</PackageIcon>
+		<PackageProjectUrl>https://github.com/Burkhardt/RAIkeep</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/Burkhardt/RaiGuard.git</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<PackageReleaseNotes>Initial release of rail CLI for RaiGuard Roslyn guardrail verification and refactoring.</PackageReleaseNotes>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<IsPackable>true</IsPackable>
+		<PackAsTool>true</PackAsTool>
+		<ToolCommandName>rail</ToolCommandName>
+		<PackageOutputPath>../artifacts/nuget</PackageOutputPath>
+		<PackageTags>raiguard;rail;roslyn;linter;guardrails;cli;tool;raikeep</PackageTags>
+		<DeployToUsrLocalBin>false</DeployToUsrLocalBin>
+
+		<RAIkeepRoot Condition="'$(RAIkeepRoot)' == '' and Exists('../../JsonPit/JsonPit.csproj')">../..</RAIkeepRoot>
+		<RAIkeepRoot Condition="'$(RAIkeepRoot)' == '' and Exists('../../../GitHub/RAIkeep/JsonPit/JsonPit.csproj')">../../../GitHub/RAIkeep</RAIkeepRoot>
+		<JsonPitProjectPath Condition="'$(RAIkeepRoot)' != '' and Exists('$(RAIkeepRoot)/JsonPit/JsonPit.csproj')">$(RAIkeepRoot)/JsonPit/JsonPit.csproj</JsonPitProjectPath>
+		<OsLibProjectPath Condition="'$(RAIkeepRoot)' != '' and Exists('$(RAIkeepRoot)/OsLib/OsLib.csproj')">$(RAIkeepRoot)/OsLib/OsLib.csproj</OsLibProjectPath>
+		<RaiUtilsProjectPath Condition="'$(RAIkeepRoot)' != '' and Exists('$(RAIkeepRoot)/RaiUtils/RaiUtils.csproj')">$(RAIkeepRoot)/RaiUtils/RaiUtils.csproj</RaiUtilsProjectPath>
+		<RaiImageProjectPath Condition="'$(RAIkeepRoot)' != '' and Exists('$(RAIkeepRoot)/RaiImage/RaiImage.csproj')">$(RAIkeepRoot)/RaiImage/RaiImage.csproj</RaiImageProjectPath>
+		<RaiDiagramProjectPath Condition="'$(RAIkeepRoot)' != '' and Exists('$(RAIkeepRoot)/RaiDiagram/RaiDiagram.csproj')">$(RAIkeepRoot)/RaiDiagram/RaiDiagram.csproj</RaiDiagramProjectPath>
+
+		<UseLocalRAIkeepSources Condition="'$(UseLocalRAIkeepSources)' == '' and '$(ContinuousIntegrationBuild)' == 'true'">false</UseLocalRAIkeepSources>
+		<UseLocalRAIkeepSources Condition="'$(UseLocalRAIkeepSources)' == '' and '$(JsonPitProjectPath)' != '' and '$(OsLibProjectPath)' != '' and '$(RaiUtilsProjectPath)' != '' and '$(RaiImageProjectPath)' != '' and '$(RaiDiagramProjectPath)' != ''">true</UseLocalRAIkeepSources>
+		<UseLocalRAIkeepSources Condition="'$(UseLocalRAIkeepSources)' == ''">false</UseLocalRAIkeepSources>
+
+		<JsonPitPackageVersion Condition="'$(JsonPitPackageVersion)' == ''">4.5.5</JsonPitPackageVersion>
+		<OsLibPackageVersion Condition="'$(OsLibPackageVersion)' == ''">4.5.5</OsLibPackageVersion>
+		<RaiUtilsPackageVersion Condition="'$(RaiUtilsPackageVersion)' == ''">4.5.5</RaiUtilsPackageVersion>
+		<RaiImagePackageVersion Condition="'$(RaiImagePackageVersion)' == ''">4.5.5</RaiImagePackageVersion>
+		<RaiDiagramPackageVersion Condition="'$(RaiDiagramPackageVersion)' == ''">4.5.5</RaiDiagramPackageVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="../README.md" Pack="true" PackagePath="\" Link="README.md" />
+		<None Include="../HardCastle.png" Pack="true" PackagePath="\" Link="HardCastle.png" />
+	</ItemGroup>
+
+	<Target Name="ValidateLocalRAIkeepSources"
+		BeforeTargets="Restore"
+		Condition="'$(UseLocalRAIkeepSources)' == 'true'">
+		<Error Condition="'$(JsonPitProjectPath)' == ''"
+			Text="UseLocalRAIkeepSources=true requires a JsonPit project checkout. Set /p:RAIkeepRoot=/path/to/RAIkeep." />
+		<Error Condition="'$(OsLibProjectPath)' == ''"
+			Text="UseLocalRAIkeepSources=true requires an OsLib project checkout. Set /p:RAIkeepRoot=/path/to/RAIkeep." />
+		<Error Condition="'$(RaiUtilsProjectPath)' == ''"
+			Text="UseLocalRAIkeepSources=true requires a RaiUtils project checkout. Set /p:RAIkeepRoot=/path/to/RAIkeep." />
+		<Error Condition="'$(RaiImageProjectPath)' == ''"
+			Text="UseLocalRAIkeepSources=true requires a RaiImage project checkout. Set /p:RAIkeepRoot=/path/to/RAIkeep." />
+		<Error Condition="'$(RaiDiagramProjectPath)' == ''"
+			Text="UseLocalRAIkeepSources=true requires a RaiDiagram project checkout. Set /p:RAIkeepRoot=/path/to/RAIkeep." />
+	</Target>
+
+	<ItemGroup Condition="'$(UseLocalRAIkeepSources)' == 'true'">
+		<ProjectReference Include="$(JsonPitProjectPath)" />
+		<ProjectReference Include="$(OsLibProjectPath)" />
+		<ProjectReference Include="$(RaiUtilsProjectPath)" />
+		<ProjectReference Include="$(RaiImageProjectPath)" />
+		<ProjectReference Include="$(RaiDiagramProjectPath)" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(UseLocalRAIkeepSources)' != 'true'">
+		<PackageReference Include="JsonPit" Version="$(JsonPitPackageVersion)" />
+		<PackageReference Include="OsLibCore" Version="$(OsLibPackageVersion)" />
+		<PackageReference Include="RaiUtils" Version="$(RaiUtilsPackageVersion)" />
+		<PackageReference Include="RaiImage" Version="$(RaiImagePackageVersion)" />
+		<PackageReference Include="RaiDiagram" Version="$(RaiDiagramPackageVersion)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\src\RaiGuard.Core\RaiGuard.Core.csproj" />
+		<ProjectReference Include="..\src\RaiGuard.CodeFixes\RaiGuard.CodeFixes.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.8.0" />
+	</ItemGroup>
+
+	<Target Name="DeployPublishedFilesToUsrLocalBin"
+		AfterTargets="Publish"
+		Condition="'$(DeployToUsrLocalBin)' == 'true'
+					 and '$(OS)' != 'Windows_NT'
+					 and '$(RuntimeIdentifier)' == 'osx-arm64'
+					 and '$(SelfContained)' == 'true'
+					 and '$(PublishSingleFile)' == 'true'">
+		<ItemGroup>
+			<DeployFiles Include="$(PublishDir)$(AssemblyName)"
+				Condition="Exists('$(PublishDir)$(AssemblyName)')" />
+			<DeployFiles Include="$(PublishDir)$(AssemblyName).pdb"
+				Condition="Exists('$(PublishDir)$(AssemblyName).pdb')" />
+		</ItemGroup>
+
+		<Message Importance="high"
+			Text="Deploying @(DeployFiles->'%(Filename)%(Extension)', ', ') to /usr/local/bin" />
+		<Copy SourceFiles="@(DeployFiles)"
+			DestinationFolder="/usr/local/bin"
+			SkipUnchangedFiles="true" />
+	</Target>
+
+</Project>

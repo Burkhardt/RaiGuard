@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Remove="Program.Naive.cs" />
+		<None Include="Program.Naive.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="../../../JsonPit/JsonPit.csproj" Condition="Exists('../../../JsonPit/JsonPit.csproj')" />
+		<ProjectReference Include="../../JsonPit/JsonPit.csproj" Condition="Exists('../../JsonPit/JsonPit.csproj') and !Exists('../../../JsonPit/JsonPit.csproj')" />
+		<ProjectReference Include="../../../OsLib/OsLib.csproj" Condition="Exists('../../../OsLib/OsLib.csproj')" />
+		<ProjectReference Include="../../OsLib/OsLib.csproj" Condition="Exists('../../OsLib/OsLib.csproj') and !Exists('../../../OsLib/OsLib.csproj')" />
+	</ItemGroup>
+
+</Project>
