@@ -83,6 +83,12 @@ To install the tool globally from local artifacts:
 dotnet tool install --global --add-source ./artifacts/nuget RaiGuard
 ```
 
+On macOS or Linux, a practical option is to install directly into a directory on your PATH:
+
+```bash
+sudo dotnet tool install RaiGuard --tool-path /usr/local/bin --add-source ./artifacts/nuget
+```
+
 Once installed, invoke `rail` anywhere:
 
 ```bash
@@ -97,6 +103,12 @@ To update or uninstall:
 ```bash
 dotnet tool update --global --add-source ./artifacts/nuget RaiGuard
 dotnet tool uninstall --global RaiGuard
+```
+
+To update an installation in `/usr/local/bin`:
+
+```bash
+sudo dotnet tool update RaiGuard --tool-path /usr/local/bin --add-source ./artifacts/nuget
 ```
 
 ## Publish Self-Contained Binary

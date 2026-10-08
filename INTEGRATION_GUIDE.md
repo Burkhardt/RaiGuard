@@ -64,6 +64,14 @@ Install the `rail` command-line utility globally via NuGet:
 dotnet tool install --global RaiGuard
 ```
 
+On macOS or Linux, a practical option is to install directly into a directory on your PATH:
+
+```bash
+sudo dotnet tool install RaiGuard --tool-path /usr/local/bin
+```
+
+so that no `$PATH` environment variable change has to happen.
+
 Verify installation:
 
 ```bash
@@ -71,10 +79,16 @@ rail --version
 rail rules
 ```
 
-To update to the latest release:
+To update:
 
 ```bash
 dotnet tool update --global RaiGuard
+```
+
+To update an installation in `/usr/local/bin`:
+
+```bash
+sudo dotnet tool update RaiGuard --tool-path /usr/local/bin
 ```
 
 ---

@@ -2,9 +2,14 @@
 
 Opinionated Roslyn analyzer, code-fix provider, and `rail` command-line tool enforcing framework physics and conventions across RAIkeep solutions.
 
+<details>
+<summary><b>Version History</b></summary>
+
 ## 4.5.5
 
 Initial release of `rail` CLI and RaiGuard Roslyn guardrail engine. Public behavior is aligned with the synchronized RAIkeep platform (4.5.5 dependency line).
+
+</details>
 
 ## Terminal font
 
@@ -31,7 +36,24 @@ It operates as two complementary NuGet packages:
 
 ```bash
 dotnet tool install --global RaiGuard
-rail --version
+```
+
+On macOS or Linux, a practical option is to install directly into a directory on your PATH:
+
+```bash
+sudo dotnet tool install RaiGuard --tool-path /usr/local/bin
+```
+
+To update:
+
+```bash
+dotnet tool update --global RaiGuard
+```
+
+To update an installation in `/usr/local/bin`:
+
+```bash
+sudo dotnet tool update RaiGuard --tool-path /usr/local/bin
 ```
 
 ### Install the Roslyn Analyzer Package
