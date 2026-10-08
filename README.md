@@ -21,9 +21,29 @@ Initial release of `rail` CLI and RaiGuard Roslyn guardrail engine. Public behav
 
 RaiGuard prevents LLMs and developers from backsliding into standard .NET boilerplate (such as `System.IO.Directory` or default serializers) when custom abstractions (`RaiPath`, `JsonPit`, etc.) are required.
 
-It operates in two complementary modes:
-1. **Roslyn Analyzer & Code Fix (`RaiGuard.Core` / `RaiGuard.CodeFixes`)**: Invoked directly during `dotnet build`, IDE compilation, and CI pipelines to emit compiler warnings/errors and provide automated quick fixes.
-2. **Command-Line Interface (`rail`)**: An executable tool (`PackAsTool=true`, `ToolCommandName=rail`) running anywhere .NET is installed to audit, verify, and automatically refactor source files across repositories.
+It operates as two complementary NuGet packages:
+1. **[`RaiGuard.Analyzer`](https://www.nuget.org/packages/RaiGuard.Analyzer)**: Roslyn analyzer and code-fix package invoked directly during `dotnet build`, IDE compilation, and CI pipelines to emit compiler warnings/errors and provide automated quick fixes.
+2. **[`RaiGuard`](https://www.nuget.org/packages/RaiGuard)**: Official .NET Global Tool CLI (`ToolCommandName=rail`) running anywhere .NET is installed to audit, verify, and automatically refactor source files across repositories.
+
+## Quick Start
+
+### Install the Global CLI Tool (`rail`)
+
+```bash
+dotnet tool install --global RaiGuard
+rail --version
+```
+
+### Install the Roslyn Analyzer Package
+
+```xml
+<PackageReference Include="RaiGuard.Analyzer" Version="4.5.5">
+  <PrivateAssets>all</PrivateAssets>
+  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+</PackageReference>
+```
+
+> 📖 **Comprehensive Adoption Guide**: See [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) for repository-wide protection via `Directory.Build.props`, VS Code C# Dev Kit live squiggles, `.editorconfig` severity overrides, and CI pipelines.
 
 ## CLI Commands & Options
 

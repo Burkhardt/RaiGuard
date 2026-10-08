@@ -10,7 +10,7 @@ using RaiGuard.Core.Diagnostics;
 using RaiGuard.Core.Helpers;
 using RaiGuard.Core.Rules;
 
-namespace RaiGuard.Cli;
+namespace RaiGuard;
 
 public static class Icons
 {

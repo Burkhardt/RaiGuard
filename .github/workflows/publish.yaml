@@ -1,0 +1,46 @@
+name: Publish Packages to NuGet.org
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Build solution
+        run: dotnet build RaiGuard.slnx -c Release /p:ContinuousIntegrationBuild=true
+
+      - name: Run tests
+        run: dotnet test RaiGuard.slnx -c Release --no-build
+
+      - name: Pack RaiGuard global tool CLI
+        run: dotnet pack rail/rail.csproj -c Release -o artifacts/nuget
+
+      - name: Pack RaiGuard.Analyzer Roslyn package
+        run: dotnet pack src/RaiGuard.Package/RaiGuard.Package.csproj -c Release -o artifacts/nuget
+
+      - name: NuGet login
+        uses: NuGet/login@v1
+        with:
+          user: Burkhardt
+
+      - name: Push packages to NuGet.org
+        run: dotnet nuget push "artifacts/nuget/*.nupkg" --source https://api.nuget.org/v3/index.json --skip-duplicate

@@ -80,7 +80,7 @@ dotnet pack rail/rail.csproj -c Release
 To install the tool globally from local artifacts:
 
 ```bash
-dotnet tool install --global --add-source ./artifacts/nuget RaiGuard.Cli
+dotnet tool install --global --add-source ./artifacts/nuget RaiGuard
 ```
 
 Once installed, invoke `rail` anywhere:
@@ -95,8 +95,8 @@ rail fix .
 To update or uninstall:
 
 ```bash
-dotnet tool update --global --add-source ./artifacts/nuget RaiGuard.Cli
-dotnet tool uninstall --global RaiGuard.Cli
+dotnet tool update --global --add-source ./artifacts/nuget RaiGuard
+dotnet tool uninstall --global RaiGuard
 ```
 
 ## Publish Self-Contained Binary

@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using RaiGuard.Cli;
+using RaiGuard;
 using Xunit;
 
 namespace RaiGuard.Tests;

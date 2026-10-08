@@ -1,21 +1,39 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <IncludeBuildOutput>false</IncludeBuildOutput>
-    <PackageId>RaiGuard</PackageId>
-    <Description>Opinionated Roslyn analyzer enforcing framework physics for Rai libraries.</Description>
-    <NoWarn>$(NoWarn);NU5128</NoWarn>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<PackageId>RaiGuard.Analyzer</PackageId>
+		<Version>4.5.5</Version>
+		<Authors>Rainer Burkhardt</Authors>
+		<Copyright>© Rainer Burkhardt</Copyright>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageIcon>HardCastle.png</PackageIcon>
+		<PackageProjectUrl>https://github.com/Burkhardt/RaiGuard</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/Burkhardt/RaiGuard.git</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageTags>raiguard;roslyn;analyzer;codefix;guardrails;linter;raikeep</PackageTags>
+		<Description>Opinionated Roslyn analyzer and code-fix provider enforcing framework physics and conventions across RAIkeep solutions.</Description>
+		<DevelopmentDependency>true</DevelopmentDependency>
+		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<NoWarn>$(NoWarn);NU5128</NoWarn>
+		<PackageOutputPath>../../artifacts/nuget</PackageOutputPath>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\RaiGuard.Core\RaiGuard.Core.csproj" />
-    <ProjectReference Include="..\RaiGuard.CodeFixes\RaiGuard.CodeFixes.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<None Include="../../README.md" Pack="true" PackagePath="\" Link="README.md" />
+		<None Include="../../HardCastle.png" Pack="true" PackagePath="\" Link="HardCastle.png" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <None Include="$(OutputPath)\RaiGuard.Core.dll" Pack="true" PackagePath="analyzers/dotnet/cs" />
-    <None Include="$(OutputPath)\RaiGuard.CodeFixes.dll" Pack="true" PackagePath="analyzers/dotnet/cs" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\RaiGuard.Core\RaiGuard.Core.csproj" />
+		<ProjectReference Include="..\RaiGuard.CodeFixes\RaiGuard.CodeFixes.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="$(OutputPath)\RaiGuard.Core.dll" Pack="true" PackagePath="analyzers/dotnet/cs" />
+		<None Include="$(OutputPath)\RaiGuard.CodeFixes.dll" Pack="true" PackagePath="analyzers/dotnet/cs" />
+	</ItemGroup>
 
 </Project>

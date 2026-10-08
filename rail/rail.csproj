@@ -2,18 +2,18 @@
 
 	<PropertyGroup>
 		<Title>RaiGuard</Title>
-		<Description>RAIkeep opinionated Roslyn linter and guardrails CLI. Enforces framework physics (RaiPath, JsonPit, etc.) and refactors prohibited patterns across solutions.</Description>
+		<Description>Official .NET Global Tool CLI for RaiGuard opinionated Roslyn guardrails. Audits, verifies, and automatically refactors framework physics violations across solutions.</Description>
 		<Version>4.5.5</Version>
 		<AssemblyVersion>$(Version)</AssemblyVersion>
 		<FileVersion>$(Version)</FileVersion>
 		<InformationalVersion>$(Version)</InformationalVersion>
-		<PackageId>RaiGuard.Cli</PackageId>
+		<PackageId>RaiGuard</PackageId>
 		<Authors>Rainer Burkhardt</Authors>
 		<Copyright>© Rainer Burkhardt</Copyright>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageIcon>HardCastle.png</PackageIcon>
-		<PackageProjectUrl>https://github.com/Burkhardt/RAIkeep</PackageProjectUrl>
+		<PackageProjectUrl>https://github.com/Burkhardt/RaiGuard</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/Burkhardt/RaiGuard.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PublishRepositoryUrl>true</PublishRepositoryUrl>

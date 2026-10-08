@@ -49,13 +49,13 @@ The RAIkeep ecosystem relies on specialized command-line tools for cloud managem
 | **`amafu`** | Cloud substrate detector and symlink reconciler | Pre-installed or built from `Amafu/` |
 | **`pits`** | AfricaStage Pit Seeder & Quartet maintenance CLI | Pre-installed in `~/.local/bin/pits` |
 | **`jpit`** | High-performance Python JsonPit inspection CLI | `pip install jsonpit` or homebrew binary |
-| **`rail`** | RaiGuard opinionated Roslyn guardrails & refactoring CLI | `dotnet tool install -g RaiGuard.Cli` or `rail/rail.csproj` |
+| **`rail`** | RaiGuard opinionated Roslyn guardrails & refactoring CLI | `dotnet tool install -g RaiGuard` or `rail/rail.csproj` |
 
 To install `rail` globally from local sources:
 
 ```bash
 dotnet pack rail/rail.csproj -c Release -o ./artifacts/nuget
-dotnet tool install --global --add-source ./artifacts/nuget RaiGuard.Cli
+dotnet tool install --global --add-source ./artifacts/nuget RaiGuard
 rail --version
 ```
 
