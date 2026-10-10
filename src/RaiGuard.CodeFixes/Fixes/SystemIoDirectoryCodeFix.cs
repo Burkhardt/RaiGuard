@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Composition;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
@@ -39,13 +40,16 @@ public sealed class SystemIoDirectoryCodeFix : CodeFixProvider
             return;
         }
 
+        var invocation = memberAccess.Parent as InvocationExpressionSyntax
+            ?? memberAccess.FirstAncestorOrSelf<InvocationExpressionSyntax>();
+
         var methodName = memberAccess.Name.Identifier.Text;
         var replacementMethodName = MapMethodName(methodName);
 
-        var title = $"Replace with 'RaiPath.{replacementMethodName}'";
+        var title = $"Replace with 'new RaiPath(...).{replacementMethodName}(...)'";
         var codeAction = CodeAction.Create(
             title: title,
-            createChangedDocument: ct => ReplaceWithRaiPathAsync(context.Document, root, memberAccess, replacementMethodName, ct),
+            createChangedDocument: ct => ReplaceWithRaiPathAsync(context.Document, root, memberAccess, invocation, replacementMethodName, ct),
             equivalenceKey: title);
 
         context.RegisterCodeFix(codeAction, diagnostic);
@@ -55,7 +59,9 @@ public sealed class SystemIoDirectoryCodeFix : CodeFixProvider
         originalMethod switch
         {
             "GetFiles" => "EnumerateFiles",
+            "EnumerateFiles" => "EnumerateFiles",
             "GetDirectories" => "EnumerateDirectories",
+            "EnumerateDirectories" => "EnumerateDirectories",
             _ => originalMethod
         };
 
@@ -63,16 +69,48 @@ public sealed class SystemIoDirectoryCodeFix : CodeFixProvider
         Document document,
         SyntaxNode root,
         MemberAccessExpressionSyntax memberAccess,
+        InvocationExpressionSyntax? invocation,
         string replacementMethodName,
         CancellationToken cancellationToken)
     {
-        var newMemberAccess = SyntaxFactory.MemberAccessExpression(
-            SyntaxKind.SimpleMemberAccessExpression,
-            SyntaxFactory.IdentifierName("RaiPath"),
-            SyntaxFactory.IdentifierName(replacementMethodName))
-            .WithTriviaFrom(memberAccess);
+        if (invocation != null &&
+            invocation.ArgumentList.Arguments.Count >= 1 &&
+            (replacementMethodName is "EnumerateDirectories" or "EnumerateFiles"))
+        {
+            var pathArg = invocation.ArgumentList.Arguments[0];
+            var remainingArgs = invocation.ArgumentList.Arguments.Skip(1);
 
-        var newRoot = root.ReplaceNode(memberAccess, newMemberAccess);
-        return Task.FromResult(document.WithSyntaxRoot(newRoot));
+            var newRaiPath = SyntaxFactory.ObjectCreationExpression(
+                SyntaxFactory.Token(SyntaxKind.NewKeyword).WithTrailingTrivia(SyntaxFactory.Space),
+                SyntaxFactory.IdentifierName("RaiPath"),
+                SyntaxFactory.ArgumentList(
+                    SyntaxFactory.SingletonSeparatedList(
+                        SyntaxFactory.Argument(pathArg.Expression))),
+                null);
+
+            var newMemberAccess = SyntaxFactory.MemberAccessExpression(
+                SyntaxKind.SimpleMemberAccessExpression,
+                newRaiPath,
+                SyntaxFactory.IdentifierName(replacementMethodName));
+
+            var newInvocation = SyntaxFactory.InvocationExpression(
+                newMemberAccess,
+                SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList(remainingArgs)))
+                .WithTriviaFrom(invocation);
+
+            var newRoot = root.ReplaceNode(invocation, newInvocation);
+            return Task.FromResult(document.WithSyntaxRoot(newRoot));
+        }
+        else
+        {
+            var newMemberAccess = SyntaxFactory.MemberAccessExpression(
+                SyntaxKind.SimpleMemberAccessExpression,
+                SyntaxFactory.IdentifierName("RaiPath"),
+                SyntaxFactory.IdentifierName(replacementMethodName))
+                .WithTriviaFrom(memberAccess);
+
+            var newRoot = root.ReplaceNode(memberAccess, newMemberAccess);
+            return Task.FromResult(document.WithSyntaxRoot(newRoot));
+        }
     }
 }

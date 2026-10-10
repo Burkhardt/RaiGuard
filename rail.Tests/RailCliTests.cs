@@ -126,8 +126,56 @@ public class Sample
             Assert.Equal(0, exitCode);
 
             var updated = File.ReadAllText(tempFile);
-            Assert.Contains("RaiPath.EnumerateFiles", updated);
+            Assert.Contains("new RaiPath(\".\").EnumerateFiles()", updated);
             Assert.DoesNotContain("Directory.GetFiles", updated);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Fact]
+    public void FixCommand_RewritesFluentDirectoryEnumerateDirectories_WithoutCollapsingChain()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
+        var originalCode = @"
+using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+
+public class TestQuartets
+{
+    public IReadOnlyList<string> Discover() =>
+        !Root.Exists()
+            ? []
+            : Directory.EnumerateDirectories(Root.ToString())
+                .Select(Path.GetFileName)
+                .Where(name => name is not null && Exists(name))
+                .Select(name => name!)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToList();
+}";
+        File.WriteAllText(tempFile, originalCode);
+
+        try
+        {
+            var exitCode = Program.Main(["fix", "-p", tempFile, "-n"]);
+            Assert.Equal(0, exitCode);
+
+            var updated = File.ReadAllText(tempFile);
+            Assert.Contains("new RaiPath(Root.ToString()).EnumerateDirectories()", updated);
+            Assert.Contains(".Select(Path.GetFileName)", updated);
+            Assert.Contains(".Where(name => name is not null && Exists(name))", updated);
+            Assert.Contains(".Select(name => name!)", updated);
+            Assert.Contains(".OrderBy(name => name, StringComparer.Ordinal)", updated);
+            Assert.Contains(".ToList()", updated);
+            Assert.DoesNotContain("Directory.EnumerateDirectories", updated);
+            Assert.DoesNotContain("RaiPath.ToList()", updated);
         }
         finally
         {

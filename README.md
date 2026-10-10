@@ -2,6 +2,10 @@
 
 Opinionated Roslyn analyzer, code-fix provider, and `rail` command-line tool enforcing framework physics and conventions across RAIkeep solutions.
 
+## 4.5.8
+
+Coordinated 4.5.8 release; receiver-type isolation and fluent LINQ chain preservation.
+
 <details>
 <summary><b>Version History</b></summary>
 

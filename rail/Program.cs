@@ -347,17 +347,25 @@ public static class Program
 				{
 					if (inv.Expression is MemberAccessExpressionSyntax ma)
 					{
-						var text = ma.ToString();
 						var isDirectory = (ruleFilter == null || ruleFilter.Equals("RAI001", StringComparison.OrdinalIgnoreCase))
-							&& (text.StartsWith("Directory.") || text.StartsWith("System.IO.Directory."));
+							&& IsDirectoryTypeAccess(ma.Expression);
 						var isFile = (ruleFilter == null || ruleFilter.Equals("RAI002", StringComparison.OrdinalIgnoreCase))
-							&& (text.StartsWith("File.") || text.StartsWith("System.IO.File."));
+							&& IsFileTypeAccess(ma.Expression);
 						var isPath = (ruleFilter == null || ruleFilter.Equals("RAI003", StringComparison.OrdinalIgnoreCase))
-							&& (text.StartsWith("Path.") || text.StartsWith("System.IO.Path."));
+							&& IsPathTypeAccess(ma.Expression);
 
 						if (isDirectory)
 						{
-							return true;
+							var method = ma.Name.Identifier.Text;
+							var argCount = inv.ArgumentList.Arguments.Count;
+							return method switch
+							{
+								"GetDirectories" => argCount >= 1,
+								"EnumerateDirectories" => argCount >= 1,
+								"GetFiles" => argCount >= 1,
+								"EnumerateFiles" => argCount >= 1,
+								_ => false
+							};
 						}
 
 						if (isFile)
@@ -403,26 +411,52 @@ public static class Program
 			var newRoot = root.ReplaceNodes(rewrites, (original, _) =>
 			{
 				var ma = (MemberAccessExpressionSyntax)original.Expression;
-				var text = ma.ToString();
 
-				if (text.StartsWith("Directory.") || text.StartsWith("System.IO.Directory."))
+				if (IsDirectoryTypeAccess(ma.Expression))
 				{
+					hasFileRewrite = true;
 					var method = ma.Name.Identifier.Text switch
 					{
 						"GetFiles" => "EnumerateFiles",
+						"EnumerateFiles" => "EnumerateFiles",
 						"GetDirectories" => "EnumerateDirectories",
+						"EnumerateDirectories" => "EnumerateDirectories",
 						var other => other
 					};
 
-					var newMa = SyntaxFactory.MemberAccessExpression(
+					if ((method is "EnumerateDirectories" or "EnumerateFiles") && original.ArgumentList.Arguments.Count >= 1)
+					{
+						var pathArg = original.ArgumentList.Arguments[0];
+						var remainingArgs = original.ArgumentList.Arguments.Skip(1);
+
+						var objectCreation = SyntaxFactory.ObjectCreationExpression(
+							SyntaxFactory.Token(SyntaxKind.NewKeyword).WithTrailingTrivia(SyntaxFactory.Space),
+							SyntaxFactory.IdentifierName("RaiPath"),
+							SyntaxFactory.ArgumentList(
+								SyntaxFactory.SingletonSeparatedList(
+									SyntaxFactory.Argument(pathArg.Expression))),
+							null);
+
+						var newMa = SyntaxFactory.MemberAccessExpression(
+							SyntaxKind.SimpleMemberAccessExpression,
+							objectCreation,
+							SyntaxFactory.IdentifierName(method));
+
+						return SyntaxFactory.InvocationExpression(
+							newMa,
+							SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList(remainingArgs)))
+							.WithTriviaFrom(original);
+					}
+
+					var fallbackMa = SyntaxFactory.MemberAccessExpression(
 						SyntaxKind.SimpleMemberAccessExpression,
 						SyntaxFactory.IdentifierName("RaiPath"),
 						SyntaxFactory.IdentifierName(method)).WithTriviaFrom(ma);
 
-					return original.WithExpression(newMa);
+					return original.WithExpression(fallbackMa);
 				}
 
-				if (text.StartsWith("Path.") || text.StartsWith("System.IO.Path."))
+				if (IsPathTypeAccess(ma.Expression))
 				{
 					hasFileRewrite = true;
 					var method = ma.Name.Identifier.Text;
@@ -454,7 +488,7 @@ public static class Program
 					}
 				}
 
-				if (text.StartsWith("File.") || text.StartsWith("System.IO.File."))
+				if (IsFileTypeAccess(ma.Expression))
 				{
 					hasFileRewrite = true;
 					var method = ma.Name.Identifier.Text;
@@ -631,6 +665,48 @@ public static class Program
 		}
 	}
 
+	private static bool IsDirectoryTypeAccess(ExpressionSyntax expression)
+	{
+		if (expression is IdentifierNameSyntax id)
+		{
+			return id.Identifier.Text == "Directory";
+		}
+		if (expression is MemberAccessExpressionSyntax ma)
+		{
+			var text = ma.ToString();
+			return text is "System.IO.Directory" or "IO.Directory";
+		}
+		return false;
+	}
+
+	private static bool IsFileTypeAccess(ExpressionSyntax expression)
+	{
+		if (expression is IdentifierNameSyntax id)
+		{
+			return id.Identifier.Text == "File";
+		}
+		if (expression is MemberAccessExpressionSyntax ma)
+		{
+			var text = ma.ToString();
+			return text is "System.IO.File" or "IO.File";
+		}
+		return false;
+	}
+
+	private static bool IsPathTypeAccess(ExpressionSyntax expression)
+	{
+		if (expression is IdentifierNameSyntax id)
+		{
+			return id.Identifier.Text == "Path";
+		}
+		if (expression is MemberAccessExpressionSyntax ma)
+		{
+			var text = ma.ToString();
+			return text is "System.IO.Path" or "IO.Path";
+		}
+		return false;
+	}
+
 	private static List<DiagnosticRecord> AnalyzeFile(string filePath, string? ruleFilter)
 	{
 		var records = new List<DiagnosticRecord>();
@@ -645,8 +721,7 @@ public static class Program
 		{
 			if (inv.Expression is MemberAccessExpressionSyntax memberAccess)
 			{
-				var accessStr = memberAccess.ToString();
-				if (accessStr.StartsWith("System.IO.Directory.") || accessStr.StartsWith("Directory."))
+				if (IsDirectoryTypeAccess(memberAccess.Expression))
 				{
 					if (ruleFilter != null && !ruleFilter.Equals("RAI001", StringComparison.OrdinalIgnoreCase))
 					{
@@ -665,7 +740,7 @@ public static class Program
 						Line: line,
 						Column: col));
 				}
-				else if (accessStr.StartsWith("System.IO.File.") || accessStr.StartsWith("File."))
+				else if (IsFileTypeAccess(memberAccess.Expression))
 				{
 					if (ruleFilter != null && !ruleFilter.Equals("RAI002", StringComparison.OrdinalIgnoreCase))
 					{
@@ -684,7 +759,7 @@ public static class Program
 						Line: line,
 						Column: col));
 				}
-				else if (accessStr.StartsWith("System.IO.Path.") || accessStr.StartsWith("Path."))
+				else if (IsPathTypeAccess(memberAccess.Expression))
 				{
 					if (ruleFilter != null && !ruleFilter.Equals("RAI003", StringComparison.OrdinalIgnoreCase))
 					{
@@ -833,7 +908,7 @@ public static class Program
 			.InformationalVersion
 			.Split('+')[0]
 			?? assembly.GetName().Version?.ToString()
-			?? "4.5.5";
+			?? "4.5.8";
 		return $"{name} v{version}";
 	}
 

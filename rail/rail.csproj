@@ -3,7 +3,7 @@
 	<PropertyGroup>
 		<Title>RaiGuard</Title>
 		<Description>Official .NET Global Tool CLI for RaiGuard opinionated Roslyn guardrails. Audits, verifies, and automatically refactors framework physics violations across solutions.</Description>
-		<Version>4.5.5</Version>
+		<Version>4.5.8</Version>
 		<AssemblyVersion>$(Version)</AssemblyVersion>
 		<FileVersion>$(Version)</FileVersion>
 		<InformationalVersion>$(Version)</InformationalVersion>
@@ -17,7 +17,7 @@
 		<RepositoryUrl>https://github.com/Burkhardt/RaiGuard.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PublishRepositoryUrl>true</PublishRepositoryUrl>
-		<PackageReleaseNotes>Initial release of rail CLI for RaiGuard Roslyn guardrail verification and refactoring.</PackageReleaseNotes>
+		<PackageReleaseNotes>Coordinated 4.5.8 release; receiver-type isolation and fluent LINQ chain preservation.</PackageReleaseNotes>
 		<OutputType>Exe</OutputType>
 		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
@@ -41,11 +41,11 @@
 		<UseLocalRAIkeepSources Condition="'$(UseLocalRAIkeepSources)' == '' and '$(JsonPitProjectPath)' != '' and '$(OsLibProjectPath)' != '' and '$(RaiUtilsProjectPath)' != '' and '$(RaiImageProjectPath)' != '' and '$(RaiDiagramProjectPath)' != ''">true</UseLocalRAIkeepSources>
 		<UseLocalRAIkeepSources Condition="'$(UseLocalRAIkeepSources)' == ''">false</UseLocalRAIkeepSources>
 
-		<JsonPitPackageVersion Condition="'$(JsonPitPackageVersion)' == ''">4.5.5</JsonPitPackageVersion>
-		<OsLibPackageVersion Condition="'$(OsLibPackageVersion)' == ''">4.5.5</OsLibPackageVersion>
-		<RaiUtilsPackageVersion Condition="'$(RaiUtilsPackageVersion)' == ''">4.5.5</RaiUtilsPackageVersion>
-		<RaiImagePackageVersion Condition="'$(RaiImagePackageVersion)' == ''">4.5.5</RaiImagePackageVersion>
-		<RaiDiagramPackageVersion Condition="'$(RaiDiagramPackageVersion)' == ''">4.5.5</RaiDiagramPackageVersion>
+		<JsonPitPackageVersion Condition="'$(JsonPitPackageVersion)' == ''">4.5.8</JsonPitPackageVersion>
+		<OsLibPackageVersion Condition="'$(OsLibPackageVersion)' == ''">4.5.8</OsLibPackageVersion>
+		<RaiUtilsPackageVersion Condition="'$(RaiUtilsPackageVersion)' == ''">4.5.8</RaiUtilsPackageVersion>
+		<RaiImagePackageVersion Condition="'$(RaiImagePackageVersion)' == ''">4.5.8</RaiImagePackageVersion>
+		<RaiDiagramPackageVersion Condition="'$(RaiDiagramPackageVersion)' == ''">4.5.8</RaiDiagramPackageVersion>
 	</PropertyGroup>
 
 	<ItemGroup>
