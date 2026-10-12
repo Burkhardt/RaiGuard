@@ -24,11 +24,11 @@ namespace HeatRecord
 
 		public static async Task<int> Main(string[] args)
 		{
-			var city = ResolveCity(args);
+			var cities = ResolveCities(args);
 			var weatherRoot = ResolveWeatherRoot(args);
-			var pitDir = weatherRoot / $"DailyHeat-{city.Slug}";
+			var pitDir = weatherRoot / "DailyHeat";
 
-			Console.WriteLine($"[HeatRecord] City: {city.Name} (Lat: {city.Latitude}, Lon: {city.Longitude})");
+			Console.WriteLine($"[HeatRecord] Cities: {string.Join(", ", cities.Select(city => city.Name))}");
 			Console.WriteLine($"[HeatRecord] Target Pit: {pitDir.FullPath}");
 
 			// Timeless temporal scope: current month across 10 years (current year and 9 preceding years)
@@ -43,51 +43,61 @@ namespace HeatRecord
 			// Ensure target pit directory exists using RaiPath
 			pitDir.mkdir();
 
-			// Fetch daily maximum temperatures via Open-Meteo Archive API or offline fallback
-			var observations = await FetchTemperatureRecordsAsync(city, currentMonth, startYear, currentYear, daysInMonth, weatherRoot);
+			// Keep this coherent dataset in memory and append one batch to one Pit.
+			var observationsByCity = new Dictionary<string, Dictionary<string, Dictionary<int, double>>>(StringComparer.Ordinal);
+			foreach (var city in cities)
+			{
+				observationsByCity[city.Slug] = await FetchTemperatureRecordsAsync(city, currentMonth, startYear, currentYear, daysInMonth, weatherRoot);
+			}
 
-			// Persist into JsonPit container
 			using (var pit = new Pit(pitDir, readOnly: false))
 			{
-				for (int day = 1; day <= daysInMonth; day++)
+				foreach (var city in cities)
 				{
-					string dayId = $"{currentMonth:D2}-{day:D2}";
-					var item = new PitItem(dayId)
+					var observations = observationsByCity[city.Slug];
+					for (int day = 1; day <= daysInMonth; day++)
 					{
-						Note = $"Daily heat observation record for {dayId} in {city.Name}"
-					};
-
-					double highest = double.MinValue;
-
-					for (int year = startYear; year <= currentYear; year++)
-					{
-						double temp = observations[dayId][year];
-						item[year.ToString()] = temp;
-
-						if (temp > highest)
+						string dayId = $"{currentMonth:D2}-{day:D2}";
+						var item = new PitItem($"{city.Slug}-{dayId}")
 						{
-							highest = temp;
+							Note = $"Daily heat observation record for {dayId} in {city.Name}"
+						};
+
+						item["City"] = city.Name;
+						item["Latitude"] = city.Latitude;
+						item["Longitude"] = city.Longitude;
+
+						double highest = double.MinValue;
+
+						for (int year = startYear; year <= currentYear; year++)
+						{
+							double temp = observations[dayId][year];
+							item[year.ToString()] = temp;
+
+							if (temp > highest)
+							{
+								highest = temp;
+							}
 						}
-					}
 
-					item["Highest"] = highest;
-					item["Unit"] = "C";
+						item["Highest"] = highest;
+						item["Unit"] = "C";
+						pit.Add(item);
 
-					pit.Add(item);
-
-					if (dayId == "10-08" || day == 1 || day == daysInMonth)
-					{
-						Console.WriteLine($"[HeatRecord] Day {dayId} -> 2024={item["2024"]}, 2025={item["2025"]}, 2026={item["2026"]}, Highest={item["Highest"]}, Unit={item["Unit"]}");
+						if (dayId == "10-08")
+						{
+							Console.WriteLine($"[HeatRecord] {item.Id} -> 2024={item["2024"]}, 2025={item["2025"]}, 2026={item["2026"]}, Highest={item["Highest"]}, Unit={item["Unit"]}");
+						}
 					}
 				}
 
 				pit.Save();
-				Console.WriteLine($"[HeatRecord] Persisted {daysInMonth} daily items to {pit.JsonFile.FullName}");
+				Console.WriteLine($"[HeatRecord] Persisted {cities.Count * daysInMonth} daily items to {pit.JsonFile.FullName}");
 			}
 
 			// Generate audit manifest using TextFile
-			var manifestFile = weatherRoot / $"DailyHeat-{city.Slug}-Manifest.txt";
-			var manifestContent = $"HeatRecord Ingestion Manifest\nGenerated: {DateTime.UtcNow:O}\nCity: {city.Name}\nPit: {pitDir.FullPath}\nDays Recorded: {daysInMonth}\nYear Range: {startYear}..{currentYear}";
+			var manifestFile = weatherRoot / "DailyHeat-Manifest.txt";
+			var manifestContent = $"HeatRecord Ingestion Manifest\nGenerated: {DateTime.UtcNow:O}\nCities: {string.Join(", ", cities.Select(city => city.Name))}\nPit: {pitDir.FullPath}\nItems Recorded: {cities.Count * daysInMonth}\nYear Range: {startYear}..{currentYear}";
 			var manifest = new TextFile(manifestFile.FullPath, manifestContent);
 
 			// Verify manifest reading back via TextFile
@@ -97,17 +107,21 @@ namespace HeatRecord
 			return 0;
 		}
 
-		private static CityCoordinates ResolveCity(string[] args)
+		private static IReadOnlyList<CityCoordinates> ResolveCities(string[] args)
 		{
 			if (args.Length > 0 && !string.IsNullOrWhiteSpace(args[0]) && !args[0].StartsWith("-"))
 			{
 				if (SupportedCities.TryGetValue(args[0], out var matched))
 				{
-					return matched;
+					return new[] { matched };
 				}
 			}
 
-			return SupportedCities["San Diego"];
+			return SupportedCities.Values
+				.GroupBy(city => city.Slug, StringComparer.OrdinalIgnoreCase)
+				.Select(group => group.First())
+				.OrderBy(city => city.Name, StringComparer.Ordinal)
+				.ToArray();
 		}
 
 		private static RaiPath ResolveWeatherRoot(string[] args)

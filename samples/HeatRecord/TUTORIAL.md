@@ -140,7 +140,7 @@ namespace HeatRecord
 
             // Anti-pattern 1: Using System.IO.Path.Combine (RAI003)
             string weatherDir = Path.Combine(Directory.GetCurrentDirectory(), "Weather");
-            string dailyHeatDir = Path.Combine(weatherDir, "DailyHeat-" + citySlug);
+            string dailyHeatDir = Path.Combine(weatherDir, "DailyHeat");
 
             // Anti-pattern 2: Using System.IO.Directory.CreateDirectory (RAI001)
             Directory.CreateDirectory(dailyHeatDir);
@@ -154,7 +154,7 @@ namespace HeatRecord
             Console.WriteLine($"Read {cachedLines.Length} lines from cached dataset.");
 
             // Anti-pattern 3 & 4 again: Writing and reading manifest via File
-            string manifestPath = Path.Combine(weatherDir, "DailyHeat-" + citySlug + "-Manifest.txt");
+            string manifestPath = Path.Combine(weatherDir, "DailyHeat" + "-Manifest.txt");
             File.WriteAllText(manifestPath, "DailyHeat Ingestion Manifest\nCity: " + city + "\nStatus: Complete");
             string[] manifestLines = File.ReadAllLines(manifestPath);
             Console.WriteLine($"Manifest lines: {manifestLines.Length}");
@@ -257,7 +257,7 @@ rail fix samples/HeatRecord/Program.Naive.cs
 ```csharp
 // BEFORE (Naive BCL anti-patterns)
 string weatherDir = Path.Combine(Directory.GetCurrentDirectory(), "Weather");
-string dailyHeatDir = Path.Combine(weatherDir, "DailyHeat-" + citySlug);
+string dailyHeatDir = Path.Combine(weatherDir, "DailyHeat");
 string cacheFile = Path.Combine(weatherDir, "DailyHeat-" + citySlug + "-OfflineSample.json");
 File.WriteAllText(cacheFile, "{...}");
 string[] cachedLines = File.ReadAllLines(cacheFile);
@@ -266,7 +266,7 @@ string[] cachedLines = File.ReadAllLines(cacheFile);
 using OsLib;
 ...
 string weatherDir = new RaiPath(Directory.GetCurrentDirectory()) / "Weather";
-string dailyHeatDir = new RaiPath(weatherDir) / ("DailyHeat-" + citySlug);
+string dailyHeatDir = new RaiPath(weatherDir) / ("DailyHeat");
 string cacheFile = new RaiPath(weatherDir) / ("DailyHeat-" + citySlug + "-OfflineSample.json");
 new TextFile(cacheFile, "{...}");
 string[] cachedLines = new TextFile(cacheFile).Read();
@@ -274,177 +274,123 @@ string[] cachedLines = new TextFile(cacheFile).Read();
 
 ---
 
-## Chapter 6: The JsonPit Multi-Year Architecture (`Program.cs`)
+## Chapter 6: One Coherent JsonPit Dataset (`Program.cs`)
 
-Now let's examine the production-grade, 100% idiomatic `Program.cs`.
+`HeatRecord` is deliberately a small, readable teaching sample. Its storage design nevertheless follows the JsonPit model: observations that belong to one coherent dataset belong in **one pit**, with each observation represented by a `PitItem`.
 
-### 6.1 Multi-City Support & Coordinates
+The sample uses the `Weather` tenant and one `DailyHeat` pit. It does not create a pit per city.
 
-`HeatRecord` accepts an optional city parameter supporting three representative climatic regions:
+### 6.1 Cities and Ingestion Scope
 
-| City | Slug | Latitude | Longitude | Climate Zone |
-|------|------|----------|-----------|--------------|
-| **San Diego** | `SanDiego` | `32.7157` | `-117.1611` | Mediterranean Coastal (Warm) |
-| **Lisbon** | `Lisbon` | `38.7223` | `-9.1393` | Atlantic Mediterranean |
-| **Johannesburg** | `Johannesburg` | `-26.2041` | `28.0473` | Subtropical Highland (Southern Hemisphere) |
+The sample knows three representative locations:
 
-Default city: **San Diego**.
+| City | Item-id prefix | Latitude | Longitude |
+|------|----------------|----------|-----------|
+| **San Diego** | `SanDiego` | `32.7157` | `-117.1611` |
+| **Lisbon** | `Lisbon` | `38.7223` | `-9.1393` |
+| **Johannesburg** | `Johannesburg` | `-26.2041` | `28.0473` |
 
-### 6.2 Timeless Temporal Scope
+With no city argument, the program ingests all three into `Weather/DailyHeat/`. A city argument is useful when demonstrating a focused update:
 
-Rather than hardcoding static dates, `HeatRecord` evaluates the current calendar month dynamically:
-- Ingests all days of the current month (e.g. October 1 to 31).
-- Spans 10 continuous years: the current year and the 9 preceding years (e.g. `2017..2026`).
-
-### 6.3 Resilient Open-Meteo Integration with Offline Fallback
-
-The application queries the free **Open-Meteo Archive API**:
-```text
-https://archive-api.open-meteo.com/v1/archive?latitude=32.7157&longitude=-117.1611&start_date=2020-10-01&end_date=2025-10-05&daily=temperature_2m_max&timezone=auto
+```bash
+dotnet run --project samples/HeatRecord/HeatRecord.csproj -- Lisbon
 ```
 
-If the workstation is offline, DNS fails, or the API is unreachable, `HeatRecord` catches the exception and falls back to a bundled offline dataset using `TextFile`:
+### 6.2 One Pit, Many Items, One Batch Boundary
+
+The program determines the current month and records its days across the current year plus the preceding nine years. It fetches or creates the small per-city observation grids, then opens `DailyHeat` once and adds every item before this process's final `Save()`.
+
+That final save is the batch boundary for this sample process; it is not the only persistence lifecycle. `pits` and `jpit` each complete their own commit when their execution ends. When a pit is opened, its state is read through the cloud-synchronized storage shared by the participating machines.
+
+Each item id combines city and calendar day, so items share one namespace without collisions:
 
 ```csharp
-var fallbackFile = weatherRoot / $"DailyHeat-{city.Slug}-OfflineSample.json";
-if (!fallbackFile.Exists())
+var item = new PitItem($"{city.Slug}-{dayId}")
 {
-	var sampleJson = $"{{\"city\":\"{city.Name}\",\"month\":{month},\"baseTemp\":{baseTemp}}}";
-	new TextFile(fallbackFile.FullPath, sampleJson);
-}
-var fallbackLines = new TextFile(fallbackFile.FullPath).Read();
+	Note = $"Daily heat observation record for {dayId} in {city.Name}"
+};
+
+item["City"] = city.Name;
+item["Latitude"] = city.Latitude;
+item["Longitude"] = city.Longitude;
+item["2024"] = 31.5;
+item["Highest"] = 34.8;
+item["Unit"] = "C";
+pit.Add(item);
 ```
 
-### 6.4 Open-World Sparse Attribute Model in JsonPit
+For example, `SanDiego-10-08`, `Lisbon-10-08`, and `Johannesburg-10-08` are separate items in the same pit. A future ingestion adds more items to the same dataset; it does not fragment the dataset into city-sized pits.
 
-In traditional relational databases or static C# DTOs, recording temperatures across years requires:
+### 6.3 Open-World Attributes
+
+`PitItem` inherits from `JObject`. Annual measurements are ordinary open-world properties, so a new year can be recorded without a database migration or a new DTO property:
+
 ```csharp
-public class DailyRecord
-{
-    public double Temp2017 { get; set; }
-    public double Temp2018 { get; set; }
-    // When 2027 arrives: DB migration required! Code redeploy required!
-}
+item["2027"] = temperature;
 ```
 
-In **JsonPit**, `PitItem` inherits directly from `JObject`:
-- **Item ID**: Represents the calendar day within the month: `MM-DD` (e.g. `10-08`).
-- **Dynamic Annual Attributes**: Years are open-world dictionary keys:
-  ```csharp
-  item["2017"] = 25.5;
-  item["2024"] = 31.5;
-  item["2025"] = 33.2;
-  item["2026"] = 34.8;
-  ```
-- **Derived Metric**:
-  ```csharp
-  item["Highest"] = 34.8;
-  ```
-- **Unit Metadata**:
-  ```csharp
-  item["Unit"] = "C";
-  ```
+The city, coordinates, unit, yearly readings, and derived high all travel with the observation they describe. This keeps reads direct and avoids joins just to interpret a single daily record.
 
-When a new year (2027) arrives, `item["2027"] = temp` is recorded dynamically without altering any schemas, tables, or existing records.
+### 6.4 Resilient Data Source
+
+The application queries the Open-Meteo Archive API for its instructional workload. If the service is unavailable, it writes and reads a small per-city offline cache through `TextFile`, then continues with a deterministic sample dataset. The cache is an input aid; `DailyHeat` remains the single JsonPit dataset.
 
 ---
 
-## Chapter 7: Cross-CLI Verification & Parity
+## Chapter 7: Cross-CLI Verification
 
-### 7.1 Running the Ingestion Engine
+### 7.1 Run the Complete Sample
 
-Run `HeatRecord` for San Diego:
+Run without a city argument to ingest the three example locations into one pit:
 
 ```bash
-dotnet run --project samples/HeatRecord/HeatRecord.csproj -- "San Diego"
+dotnet run --project samples/HeatRecord/HeatRecord.csproj
 ```
 
-Console Output:
+Example output (the calendar month and values vary):
+
 ```text
-[HeatRecord] City: San Diego (Lat: 32.7157, Lon: -117.1611)
-[HeatRecord] Target Pit: .../Weather/DailyHeat-SanDiego/
+[HeatRecord] Cities: Johannesburg, Lisbon, San Diego
+[HeatRecord] Target Pit: .../Weather/DailyHeat/
 [HeatRecord] Ingesting month 10 across 2017..2026 (31 calendar days)
-[HeatRecord] Successfully queried Open-Meteo Archive API.
-[HeatRecord] Loaded bundled offline dataset via TextFile (1 lines).
-[HeatRecord] Day 10-01 -> 2024=28, 2025=29.1, 2026=29.1, Highest=29.1, Unit=C
-[HeatRecord] Day 10-08 -> 2024=31.5, 2025=33.2, 2026=34.8, Highest=34.8, Unit=C
-[HeatRecord] Day 10-31 -> 2024=27.3, 2025=28.4, 2026=28.4, Highest=28.4, Unit=C
-[HeatRecord] Persisted 31 daily items to .../Weather/DailyHeat-SanDiego/DailyHeat-SanDiego.pit
-[HeatRecord] Manifest verified via TextFile (12 lines).
+[HeatRecord] Johannesburg-10-08 -> 2024=..., 2025=..., 2026=..., Highest=..., Unit=C
+[HeatRecord] Lisbon-10-08 -> 2024=..., 2025=..., 2026=..., Highest=..., Unit=C
+[HeatRecord] SanDiego-10-08 -> 2024=31.5, 2025=33.2, 2026=34.8, Highest=34.8, Unit=C
+[HeatRecord] Persisted 93 daily items to .../Weather/DailyHeat/DailyHeat.pit
 ```
 
-### 7.2 Discovering Tenant Roots with `pits`
-
-Query the `pits` CLI to verify the canonical tenant root location:
-
-```bash
-pits -h -r Weather
-```
-
-Output:
-```text
- ────────────────────────────
- AfricaStage Pit Seeder CLI
- ────────────────────────────
--r, --pitroot    /Users/RSB/Projects/GitHub/RAIkeep/Weather/
-  Person         /Users/RSB/Projects/GitHub/RAIkeep/Weather/Person/Person.pit
-  Object         /Users/RSB/Projects/GitHub/RAIkeep/Weather/Object/Object.pit
-  Place          /Users/RSB/Projects/GitHub/RAIkeep/Weather/Place/Place.pit
-  Activity       /Users/RSB/Projects/GitHub/RAIkeep/Weather/Activity/Activity.pit
-```
-
-### 7.3 Discovering Pits with `jpit list`
-
-Use `jpit list` to inspect active pits under the `Weather` tenant root:
+### 7.2 Discover the Dataset
 
 ```bash
 jpit list -r Weather
 ```
 
-Output:
 ```text
 Found 1 pit(s) in directory 'Weather/':
-  DailyHeat-SanDiego
+  DailyHeat
 ```
 
-*(When Lisbon and Johannesburg are ingested, all three pits appear cleanly under `Weather/`)*
-
-### 7.4 Inspecting Landmark Item `10-08` with `jpit get`
-
-Query the exact calendar day `10-08` from `DailyHeat-SanDiego`:
+### 7.3 Read One Observation
 
 ```bash
-jpit get DailyHeat-SanDiego 10-08 -r Weather
+jpit get DailyHeat SanDiego-10-08 -r Weather
 ```
 
-Output:
 ```json
 {
-  "2017": 25.5,
-  "2018": 25.8,
-  "2019": 26.1,
-  "2020": 26.4,
-  "2021": 26.7,
-  "2022": 27.0,
-  "2023": 27.3,
+  "City": "San Diego",
+  "Latitude": 32.7157,
+  "Longitude": -117.1611,
   "2024": 31.5,
   "2025": 33.2,
   "2026": 34.8,
   "Highest": 34.8,
   "Unit": "C",
-  "Id": "10-08",
-  "Modified": "2026-10-08T17:19:39.0068120Z",
-  "Deleted": false,
-  "Note": "Daily heat observation record for 10-08 in San Diego"
+  "Id": "SanDiego-10-08"
 }
 ```
 
-### 7.5 Isolation from WWWA Quartet Clutter
-
-Notice that:
-- The pit name is `DailyHeat-SanDiego`.
-- It lives under the dedicated domain tenant `Weather`.
-- It is completely clean and independent of the WWWA quartet pits (`Person`, `Object`, `Place`, `Activity`), demonstrating domain tenant modularity.
+`DailyHeat` stays separate from the WWWA quartet because `Weather` is its own tenant. Within that tenant, one pit holds the coherent body of temperature observations.
 
 ---
 

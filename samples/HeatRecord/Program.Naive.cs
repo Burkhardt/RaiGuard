@@ -7,13 +7,13 @@ namespace HeatRecord
     {
         public static void Main(string[] args)
         {
-            // Naive weather fetch and caching workflow with BCL anti-patterns
-            string city = args.Length > 0 ? args[0] : "San Diego";
-            string citySlug = city.Replace(" ", "");
+			// Naive weather fetch and caching workflow with BCL anti-patterns
+			string city = args.Length > 0 ? args[0] : "San Diego";
+			string citySlug = city.Replace(" ", "");
 
             // Anti-pattern 1: Using System.IO.Path.Combine (RAI003)
             string weatherDir = Path.Combine(Directory.GetCurrentDirectory(), "Weather");
-            string dailyHeatDir = Path.Combine(weatherDir, "DailyHeat-" + citySlug);
+			string dailyHeatDir = Path.Combine(weatherDir, "DailyHeat");
 
             // Anti-pattern 2: Using System.IO.Directory.CreateDirectory (RAI001)
             Directory.CreateDirectory(dailyHeatDir);
@@ -27,7 +27,7 @@ namespace HeatRecord
             Console.WriteLine($"Read {cachedLines.Length} lines from cached dataset.");
 
             // Anti-pattern 3 & 4 again: Writing and reading manifest via File
-            string manifestPath = Path.Combine(weatherDir, "DailyHeat-" + citySlug + "-Manifest.txt");
+			string manifestPath = Path.Combine(weatherDir, "DailyHeat-Manifest.txt");
             File.WriteAllText(manifestPath, "DailyHeat Ingestion Manifest\nCity: " + city + "\nStatus: Complete");
             string[] manifestLines = File.ReadAllLines(manifestPath);
             Console.WriteLine($"Manifest lines: {manifestLines.Length}");
