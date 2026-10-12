@@ -8,70 +8,48 @@ It operates as two complementary deliverables:
 1. **[`RaiGuard.Analyzer`](https://www.nuget.org/packages/RaiGuard.Analyzer)**: Roslyn analyzer and code-fix provider invoked during `dotnet build`, IDE keystrokes (VS Code C# Dev Kit), and CI workflows to emit live warnings and automated quick fixes.
 2. **[`RaiGuard`](https://www.nuget.org/packages/RaiGuard)**: Cross-platform .NET Global Tool CLI (`ToolCommandName=rail`) running anywhere .NET is installed to audit, verify, and automatically refactor source files across repositories.
 
----
+## Latest Version 4.5.8
 
-<details>
-<summary><b>Release History & Version Notes</b></summary>
+Latest release notes: [RaiGuard 4.5.8 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#458).
 
-### 4.5.8
+## Previous Versions
 
-- **Receiver-Type Isolation**: Fixed AST rewriter in `rail fix` and Roslyn code-fix provider to strictly isolate innermost receiver types (`Directory.*`, `File.*`, `Path.*`), preventing chained fluent LINQ calls (`.Select()`, `.Where()`, `.OrderBy()`, `.ToList()`) from collapsing.
-- **Instance Invocation Refactoring**: Rewrote `Directory.GetDirectories` / `EnumerateDirectories` and `Directory.GetFiles` / `EnumerateFiles` to proper `OsLib` instance invocations: `new RaiPath(path).EnumerateDirectories(...)` and `new RaiPath(path).EnumerateFiles(...)`.
-- **Test Harmonization**: Harmonized all test suites across the solution to target `.NET 10.0` (`net10.0`).
-- **RAIkeep Alignment**: Synchronized all platform package references (`JsonPit`, `OsLib`, `RaiUtils`, `RaiImage`, `RaiDiagram`) to `4.5.8`.
+For release notes and changelogs of earlier releases, see the [RaiGuard 4.x Release Notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md).
 
-### 4.5.5
-
-- Initial public release of `rail` CLI and RaiGuard Roslyn guardrail engine.
-- Implemented core guardrails: `RAI001` (Directory prohibition), `RAI002` (File prohibition), `RAI003` (Path prohibition), and `RAI010` (Tab indentation enforcement).
-- Public behavior aligned with the synchronized RAIkeep platform (4.5.5 dependency line).
-
-</details>
 
 ---
 
-<details open>
-<summary><b>Installation & PATH Setup (Recommended: /usr/local/bin)</b></summary>
+## Installation
 
-### Option A: Install Directly into `/usr/local/bin` (Recommended)
-
-To run `rail` everywhere on macOS or Linux without needing to configure or modify your shell `PATH` variable:
-
-```bash
-sudo dotnet tool install RaiGuard --tool-path /usr/local/bin
-```
-
-To update an existing installation in `/usr/local/bin`:
-
-```bash
-sudo dotnet tool update RaiGuard --tool-path /usr/local/bin
-```
-
-### Option B: Symlink from User Global Tools
-
-If you already have global .NET tools installed in `~/.dotnet/tools`, you can link `rail` into `/usr/local/bin`:
-
-```bash
-ln -sf ~/.dotnet/tools/rail /usr/local/bin/rail
-```
-
-### Option C: Standard Global Tool Install
-
-Install into user-level `~/.dotnet/tools` directory:
+### .NET global tool
 
 ```bash
 dotnet tool install --global RaiGuard
 ```
 
-Update to the latest version:
+To update:
 
 ```bash
 dotnet tool update --global RaiGuard
 ```
 
-*(Ensure `~/.dotnet/tools` is added to your shell's `PATH` when using this option)*
+*(Requires `~/.dotnet/tools` on your PATH.)*
 
-### Roslyn Analyzer Package (Project-Level)
+### .NET tool in `/usr/local/bin` (Recommended for macOS & Linux)
+
+```bash
+sudo dotnet tool install RaiGuard --tool-path /usr/local/bin
+```
+
+To update:
+
+```bash
+sudo dotnet tool update RaiGuard --tool-path /usr/local/bin
+```
+
+`sudo` is needed to write to `/usr/local/bin` during installation and updates. Running `rail` does not require it.
+
+### Roslyn analyzer package
 
 To enforce guardrails during `dotnet build` and in IDEs, add the analyzer package to your `.csproj` or repository `Directory.Build.props`:
 
@@ -82,14 +60,11 @@ To enforce guardrails during `dotnet build` and in IDEs, add the analyzer packag
 </PackageReference>
 ```
 
-> 📖 **Comprehensive Adoption Guide**: See [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) for repository-wide protection via `Directory.Build.props`, VS Code C# Dev Kit live squiggles, `.editorconfig` severity overrides, and CI pipelines.
-
-</details>
+See [INTEGRATION_GUIDE.md](https://github.com/Burkhardt/RaiGuard/blob/main/INTEGRATION_GUIDE.md) for repository-wide protection, IDE diagnostics, and CI pipelines.
 
 ---
 
-<details open>
-<summary><b>Real-World Example: HeatRecord Weather App (Before & After)</b></summary>
+## Real-World Example: HeatRecord Weather App (Before & After)
 
 The repository includes a complete reference application under [`samples/HeatRecord/`](samples/HeatRecord/) illustrating how naive code with common BCL anti-patterns is identified and transformed into clean, idiomatic RAIkeep platform code.
 
@@ -240,12 +215,9 @@ For the full production design pattern featuring `pitDir.mkdir()`, dynamic multi
 - [`samples/HeatRecord/Program.cs`](samples/HeatRecord/Program.cs)
 - [`samples/HeatRecord/TUTORIAL.md`](samples/HeatRecord/TUTORIAL.md)
 
-</details>
-
 ---
 
-<details>
-<summary><b>CLI Commands & Reference (`rail`)</b></summary>
+## CLI Commands & Reference (`rail`)
 
 ```text
 Commands: check, fix, rules
@@ -296,12 +268,9 @@ Emit JSON diagnostics for CI integration:
 rail check --json
 ```
 
-</details>
-
 ---
 
-<details>
-<summary><b>Guardrail Rules & Platform Conventions</b></summary>
+## Guardrail Rules & Platform Conventions
 
 ### Rule Catalog
 
@@ -346,12 +315,9 @@ rail check --json
   new RaiFile(filePath).rm(); // POSIX rm()
   ```
 
-</details>
-
 ---
 
-<details>
-<summary><b>Solution Architecture & Codebase Structure</b></summary>
+## Solution Architecture & Codebase Structure
 
 ```text
 RaiGuard/
@@ -401,12 +367,9 @@ RaiGuard/
 └── RaiGuard.sln                          # Solution (classic sln format)
 ```
 
-</details>
-
 ---
 
-<details>
-<summary><b>Terminal Font & Visual Phenotype</b></summary>
+## Terminal Font & Visual Phenotype
 
 > **Font note:** The `rail` help screen and console diagnostics use glyph icons from Nerd Fonts. Most
 > Nerd Font-patched fonts render correctly in most terminal environments. Blink
@@ -417,12 +380,9 @@ RaiGuard/
 > [terminal font guide](https://github.com/Burkhardt/RAIkeep/blob/main/doc/TERMINAL_FONTS.md)
 > for Blink, macOS, and Ubuntu setup.
 
-</details>
-
 ---
 
-<details>
-<summary><b>Building from Source</b></summary>
+## Building from Source
 
 To build the entire solution and run all test suites locally:
 
@@ -439,5 +399,3 @@ dotnet pack src/RaiGuard.Package/RaiGuard.Package.csproj -c Release -o ./artifac
 ```
 
 See [BuildFromSource.md](BuildFromSource.md) for full instructions.
-
-</details>
