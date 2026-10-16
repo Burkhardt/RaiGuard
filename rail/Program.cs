@@ -1,13 +1,11 @@
 using System.Collections.Immutable;
 using System.Reflection;
-using System.Text.RegularExpressions;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Diagnostics;
 using OsLib;
 using RaiGuard.Core.Diagnostics;
-using RaiGuard.Core.Helpers;
 using RaiGuard.Core.Rules;
 
 namespace RaiGuard;
@@ -64,14 +62,14 @@ public static class Messages
 		$"--rule\t\t{Icons.Shield}\t{RuleDescription()}",
 		$"--json\t\t{(Json ? Icons.Success : Icons.NotAvailable)}\toutput diagnostics in JSON format",
 		$"--dry-run\t{Icons.Info}\tsimulate code fixes without modifying source files on disk",
-		$"{Icons.Info} Rules\t{Icons.Shield}\tRAI001 (Directory), RAI002 (File), RAI003 (Path), RAI010 (Formatting)",
+		$"{Icons.Info} Rules\t{Icons.Shield}\tRAI001..RAI009 (OsLib/Cloud), RAI010 (Formatting), RAI020..RAI024 (JsonPit), RAI030 (Diagram/Utils)",
 	];
 
 	private static string PathDescription() =>
 		!string.IsNullOrWhiteSpace(TargetPath) ? TargetPath : "target file or directory (defaults to current directory)";
 
 	private static string RuleDescription() =>
-		!string.IsNullOrWhiteSpace(TargetRule) ? TargetRule : "filter by rule ID (e.g. RAI001)";
+		!string.IsNullOrWhiteSpace(TargetRule) ? TargetRule : "filter by rule ID (e.g. RAI001, RAI020)";
 
 	public static void WriteHighlighted(string text, ConsoleColor foreground = ConsoleColor.Black, ConsoleColor? background = null)
 	{
@@ -211,51 +209,22 @@ public static class Program
 			Messages.WriteBanner(BannerTitle);
 		}
 
-		// Default action is check
 		return RunCheck(pathParam, ruleParam, Messages.Json);
 	}
 
 	private static int RunRules(bool json)
 	{
-		var rules = new[]
-		{
-			new
+		var rules = DiagnosticDescriptors.Catalog
+			.Select(entry => new
 			{
-				Id = DiagnosticDescriptors.ProhibitSystemIoDirectory.Id,
-				Title = DiagnosticDescriptors.ProhibitSystemIoDirectory.Title.ToString(),
-				Category = DiagnosticDescriptors.ProhibitSystemIoDirectory.Category,
-				Severity = DiagnosticDescriptors.ProhibitSystemIoDirectory.DefaultSeverity.ToString(),
-				Description = DiagnosticDescriptors.ProhibitSystemIoDirectory.Description.ToString(),
-				Remediation = "Use RaiPath methods (e.g. RaiPath.EnumerateDirectories, RaiPath.EnumerateFiles)"
-			},
-			new
-			{
-				Id = DiagnosticDescriptors.ProhibitSystemIoFile.Id,
-				Title = DiagnosticDescriptors.ProhibitSystemIoFile.Title.ToString(),
-				Category = DiagnosticDescriptors.ProhibitSystemIoFile.Category,
-				Severity = DiagnosticDescriptors.ProhibitSystemIoFile.DefaultSeverity.ToString(),
-				Description = DiagnosticDescriptors.ProhibitSystemIoFile.Description.ToString(),
-				Remediation = "Use RaiFile or TextFile methods (e.g. new RaiFile(path).Exists(), new RaiFile(path).rm(), new TextFile(path).Read(), new TextFile(path, content))"
-			},
-			new
-			{
-				Id = DiagnosticDescriptors.ProhibitSystemIoPath.Id,
-				Title = DiagnosticDescriptors.ProhibitSystemIoPath.Title.ToString(),
-				Category = DiagnosticDescriptors.ProhibitSystemIoPath.Category,
-				Severity = DiagnosticDescriptors.ProhibitSystemIoPath.DefaultSeverity.ToString(),
-				Description = DiagnosticDescriptors.ProhibitSystemIoPath.Description.ToString(),
-				Remediation = "Use RaiPath or RaiRelPath with operator '/' (e.g. new RaiPath(a) / b)"
-			},
-			new
-			{
-				Id = DiagnosticDescriptors.EnforceWhitespaceFormatting.Id,
-				Title = DiagnosticDescriptors.EnforceWhitespaceFormatting.Title.ToString(),
-				Category = DiagnosticDescriptors.EnforceWhitespaceFormatting.Category,
-				Severity = DiagnosticDescriptors.EnforceWhitespaceFormatting.DefaultSeverity.ToString(),
-				Description = DiagnosticDescriptors.EnforceWhitespaceFormatting.Description.ToString(),
-				Remediation = "Indent code with tabs ('\\t') and use single spaces between tokens"
-			}
-		};
+				Id = entry.Id,
+				Title = entry.Descriptor.Title.ToString(),
+				Category = entry.Descriptor.Category,
+				Severity = entry.Descriptor.DefaultSeverity.ToString(),
+				Description = entry.Descriptor.Description.ToString(),
+				Remediation = entry.Remediation
+			})
+			.ToArray();
 
 		if (json)
 		{
@@ -338,37 +307,50 @@ public static class Program
 		foreach (var filePath in files)
 		{
 			var code = File.ReadAllText(filePath);
+
+			// Optional explicit RAI010 tab indentation fix when --rule RAI010 is passed
+			if (ruleFilter != null && ruleFilter.Equals("RAI010", StringComparison.OrdinalIgnoreCase))
+			{
+				var (tabFixedCode, tabFixes) = NormalizeIndentationToTabs(code);
+				if (tabFixes > 0)
+				{
+					totalFixes += tabFixes;
+					if (dryRun)
+					{
+						Messages.WriteInfo($"{Icons.Info} [DryRun] Would fix {tabFixes} violation(s) in {filePath}");
+					}
+					else
+					{
+						File.WriteAllText(filePath, tabFixedCode);
+						Messages.WriteSuccess($"{Icons.Check} Fixed {tabFixes} violation(s) in {filePath}");
+					}
+				}
+				continue;
+			}
+
 			var tree = CSharpSyntaxTree.ParseText(code);
 			var root = tree.GetRoot();
 
-			var rewrites = root.DescendantNodes()
-				.OfType<InvocationExpressionSyntax>()
-				.Where(inv =>
-				{
-					if (inv.Expression is MemberAccessExpressionSyntax ma)
-					{
-						var isDirectory = (ruleFilter == null || ruleFilter.Equals("RAI001", StringComparison.OrdinalIgnoreCase))
-							&& IsDirectoryTypeAccess(ma.Expression);
-						var isFile = (ruleFilter == null || ruleFilter.Equals("RAI002", StringComparison.OrdinalIgnoreCase))
-							&& IsFileTypeAccess(ma.Expression);
-						var isPath = (ruleFilter == null || ruleFilter.Equals("RAI003", StringComparison.OrdinalIgnoreCase))
-							&& IsPathTypeAccess(ma.Expression);
+			bool allowRai001 = ruleFilter == null || ruleFilter.Equals("RAI001", StringComparison.OrdinalIgnoreCase);
+			bool allowRai002 = ruleFilter == null || ruleFilter.Equals("RAI002", StringComparison.OrdinalIgnoreCase);
+			bool allowRai003 = ruleFilter == null || ruleFilter.Equals("RAI003", StringComparison.OrdinalIgnoreCase);
+			bool allowRai004 = ruleFilter == null || ruleFilter.Equals("RAI004", StringComparison.OrdinalIgnoreCase);
+			bool allowRai022 = ruleFilter == null || ruleFilter.Equals("RAI022", StringComparison.OrdinalIgnoreCase);
+			bool allowRai030 = ruleFilter == null || ruleFilter.Equals("RAI030", StringComparison.OrdinalIgnoreCase);
 
-						if (isDirectory)
+			var rewrites = root.DescendantNodes()
+				.Where(node =>
+				{
+					if (node is InvocationExpressionSyntax inv && inv.Expression is MemberAccessExpressionSyntax ma)
+					{
+						if (allowRai001 && RaiKeepArchitectureAnalyzer.IsDirectoryTypeAccess(ma.Expression))
 						{
 							var method = ma.Name.Identifier.Text;
 							var argCount = inv.ArgumentList.Arguments.Count;
-							return method switch
-							{
-								"GetDirectories" => argCount >= 1,
-								"EnumerateDirectories" => argCount >= 1,
-								"GetFiles" => argCount >= 1,
-								"EnumerateFiles" => argCount >= 1,
-								_ => false
-							};
+							return method is "GetDirectories" or "EnumerateDirectories" or "GetFiles" or "EnumerateFiles" && argCount >= 1;
 						}
 
-						if (isFile)
+						if (allowRai002 && RaiKeepArchitectureAnalyzer.IsFileTypeAccess(ma.Expression))
 						{
 							var method = ma.Name.Identifier.Text;
 							var argCount = inv.ArgumentList.Arguments.Count;
@@ -383,12 +365,46 @@ public static class Program
 							};
 						}
 
-						if (isPath)
+						if (allowRai003 && RaiKeepArchitectureAnalyzer.IsPathTypeAccess(ma.Expression))
 						{
 							var method = ma.Name.Identifier.Text;
 							return method == "Combine" && inv.ArgumentList.Arguments.Count >= 2;
 						}
+
+						if (allowRai022 &&
+							ma.Name.Identifier.Text == "Exists" &&
+							inv.ArgumentList.Arguments.Count == 0 &&
+							ma.Expression is MemberAccessExpressionSyntax innerMa &&
+							innerMa.Name.Identifier.Text == "PitDir")
+						{
+							return true;
+						}
 					}
+
+					if (allowRai004 && node is ObjectCreationExpressionSyntax creation)
+					{
+						var typeName = creation.Type is IdentifierNameSyntax id ? id.Identifier.Text : creation.Type.ToString();
+						if (typeName == "RaiPath" &&
+							creation.ArgumentList?.Arguments.Count == 1 &&
+							creation.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax lit &&
+							lit.IsKind(SyntaxKind.StringLiteralExpression))
+						{
+							var val = lit.Token.ValueText;
+							return !string.IsNullOrEmpty(val) &&
+								val != "~" &&
+								val != "." &&
+								val != ".." &&
+								!val.EndsWith("/", StringComparison.Ordinal) &&
+								!val.EndsWith("\\", StringComparison.Ordinal);
+						}
+					}
+
+					if (allowRai030 && node is MemberAccessExpressionSyntax member &&
+						member.ToString() == "ImageNamingConvention.Legacy")
+					{
+						return true;
+					}
+
 					return false;
 				})
 				.ToList();
@@ -406,15 +422,58 @@ public static class Program
 				continue;
 			}
 
-			bool hasFileRewrite = false;
+			bool hasOsLibRewrite = false;
 
 			var newRoot = root.ReplaceNodes(rewrites, (original, _) =>
 			{
-				var ma = (MemberAccessExpressionSyntax)original.Expression;
-
-				if (IsDirectoryTypeAccess(ma.Expression))
+				if (original is ObjectCreationExpressionSyntax creation &&
+					creation.ArgumentList?.Arguments.Count == 1 &&
+					creation.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax lit)
 				{
-					hasFileRewrite = true;
+					var newVal = lit.Token.ValueText + "/";
+					var newLit = SyntaxFactory.LiteralExpression(
+						SyntaxKind.StringLiteralExpression,
+						SyntaxFactory.Literal(newVal)).WithTriviaFrom(lit);
+					var newArg = creation.ArgumentList.Arguments[0].WithExpression(newLit);
+					return creation.WithArgumentList(
+						SyntaxFactory.ArgumentList(SyntaxFactory.SingletonSeparatedList(newArg)))
+						.WithTriviaFrom(creation);
+				}
+
+				if (original is MemberAccessExpressionSyntax legacyMa &&
+					legacyMa.ToString() == "ImageNamingConvention.Legacy")
+				{
+					return legacyMa.WithName(SyntaxFactory.IdentifierName("Structured")).WithTriviaFrom(legacyMa);
+				}
+
+				if (original is not InvocationExpressionSyntax inv || inv.Expression is not MemberAccessExpressionSyntax ma)
+				{
+					return original;
+				}
+
+				if (ma.Name.Identifier.Text == "Exists" &&
+					inv.ArgumentList.Arguments.Count == 0 &&
+					ma.Expression is MemberAccessExpressionSyntax innerPitDir &&
+					innerPitDir.Name.Identifier.Text == "PitDir")
+				{
+					var jsonFileMa = SyntaxFactory.MemberAccessExpression(
+						SyntaxKind.SimpleMemberAccessExpression,
+						innerPitDir.Expression,
+						SyntaxFactory.IdentifierName("JsonFile"));
+					var pathMa = SyntaxFactory.MemberAccessExpression(
+						SyntaxKind.SimpleMemberAccessExpression,
+						jsonFileMa,
+						SyntaxFactory.IdentifierName("Path"));
+					var existsMa = SyntaxFactory.MemberAccessExpression(
+						SyntaxKind.SimpleMemberAccessExpression,
+						pathMa,
+						SyntaxFactory.IdentifierName("Exists"));
+					return inv.WithExpression(existsMa).WithTriviaFrom(inv);
+				}
+
+				if (RaiKeepArchitectureAnalyzer.IsDirectoryTypeAccess(ma.Expression))
+				{
+					hasOsLibRewrite = true;
 					var method = ma.Name.Identifier.Text switch
 					{
 						"GetFiles" => "EnumerateFiles",
@@ -424,10 +483,10 @@ public static class Program
 						var other => other
 					};
 
-					if ((method is "EnumerateDirectories" or "EnumerateFiles") && original.ArgumentList.Arguments.Count >= 1)
+					if ((method is "EnumerateDirectories" or "EnumerateFiles") && inv.ArgumentList.Arguments.Count >= 1)
 					{
-						var pathArg = original.ArgumentList.Arguments[0];
-						var remainingArgs = original.ArgumentList.Arguments.Skip(1);
+						var pathArg = inv.ArgumentList.Arguments[0];
+						var remainingArgs = inv.ArgumentList.Arguments.Skip(1);
 
 						var objectCreation = SyntaxFactory.ObjectCreationExpression(
 							SyntaxFactory.Token(SyntaxKind.NewKeyword).WithTrailingTrivia(SyntaxFactory.Space),
@@ -445,7 +504,7 @@ public static class Program
 						return SyntaxFactory.InvocationExpression(
 							newMa,
 							SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList(remainingArgs)))
-							.WithTriviaFrom(original);
+							.WithTriviaFrom(inv);
 					}
 
 					var fallbackMa = SyntaxFactory.MemberAccessExpression(
@@ -453,16 +512,16 @@ public static class Program
 						SyntaxFactory.IdentifierName("RaiPath"),
 						SyntaxFactory.IdentifierName(method)).WithTriviaFrom(ma);
 
-					return original.WithExpression(fallbackMa);
+					return inv.WithExpression(fallbackMa);
 				}
 
-				if (IsPathTypeAccess(ma.Expression))
+				if (RaiKeepArchitectureAnalyzer.IsPathTypeAccess(ma.Expression))
 				{
-					hasFileRewrite = true;
+					hasOsLibRewrite = true;
 					var method = ma.Name.Identifier.Text;
-					if (method == "Combine" && original.ArgumentList.Arguments.Count >= 2)
+					if (method == "Combine" && inv.ArgumentList.Arguments.Count >= 2)
 					{
-						var args = original.ArgumentList.Arguments;
+						var args = inv.ArgumentList.Arguments;
 						ExpressionSyntax current = SyntaxFactory.ObjectCreationExpression(
 							SyntaxFactory.Token(SyntaxKind.NewKeyword).WithTrailingTrivia(SyntaxFactory.Space),
 							SyntaxFactory.IdentifierName("RaiPath"),
@@ -484,15 +543,15 @@ public static class Program
 								args[i].Expression);
 						}
 
-						return current.WithTriviaFrom(original);
+						return current.WithTriviaFrom(inv);
 					}
 				}
 
-				if (IsFileTypeAccess(ma.Expression))
+				if (RaiKeepArchitectureAnalyzer.IsFileTypeAccess(ma.Expression))
 				{
-					hasFileRewrite = true;
+					hasOsLibRewrite = true;
 					var method = ma.Name.Identifier.Text;
-					var pathArg = original.ArgumentList.Arguments[0];
+					var pathArg = inv.ArgumentList.Arguments[0];
 
 					if (method == "Exists")
 					{
@@ -510,7 +569,7 @@ public static class Program
 							SyntaxFactory.IdentifierName("Exists"));
 
 						return SyntaxFactory.InvocationExpression(newMa, SyntaxFactory.ArgumentList())
-							.WithTriviaFrom(original);
+							.WithTriviaFrom(inv);
 					}
 
 					if (method == "Delete")
@@ -529,7 +588,7 @@ public static class Program
 							SyntaxFactory.IdentifierName("rm"));
 
 						return SyntaxFactory.InvocationExpression(newMa, SyntaxFactory.ArgumentList())
-							.WithTriviaFrom(original);
+							.WithTriviaFrom(inv);
 					}
 
 					if (method == "ReadAllLines")
@@ -548,7 +607,7 @@ public static class Program
 							SyntaxFactory.IdentifierName("Read"));
 
 						return SyntaxFactory.InvocationExpression(newMa, SyntaxFactory.ArgumentList())
-							.WithTriviaFrom(original);
+							.WithTriviaFrom(inv);
 					}
 
 					if (method == "ReadAllText")
@@ -567,15 +626,15 @@ public static class Program
 							SyntaxFactory.IdentifierName("ReadAllText"));
 
 						var remainingArgs = SyntaxFactory.ArgumentList(
-							SyntaxFactory.SeparatedList(original.ArgumentList.Arguments.Skip(1)));
+							SyntaxFactory.SeparatedList(inv.ArgumentList.Arguments.Skip(1)));
 
 						return SyntaxFactory.InvocationExpression(newMa, remainingArgs)
-							.WithTriviaFrom(original);
+							.WithTriviaFrom(inv);
 					}
 
 					if (method == "WriteAllText")
 					{
-						var textArg = original.ArgumentList.Arguments[1];
+						var textArg = inv.ArgumentList.Arguments[1];
 						return SyntaxFactory.ObjectCreationExpression(
 							SyntaxFactory.IdentifierName("TextFile"))
 							.WithArgumentList(SyntaxFactory.ArgumentList(
@@ -585,14 +644,14 @@ public static class Program
 									SyntaxFactory.Argument(textArg.Expression)
 								})))
 							.NormalizeWhitespace()
-							.WithTriviaFrom(original);
+							.WithTriviaFrom(inv);
 					}
 				}
 
 				return original;
 			});
 
-			if (hasFileRewrite && !HasOsLibUsing(newRoot))
+			if (hasOsLibRewrite && !HasOsLibUsing(newRoot))
 			{
 				newRoot = AddOsLibUsing(newRoot);
 			}
@@ -617,6 +676,73 @@ public static class Program
 		}
 
 		return 0;
+	}
+
+	private static (string Code, int Fixes) NormalizeIndentationToTabs(string code)
+	{
+		var sb = new StringBuilder(code.Length);
+		int fixes = 0;
+		int i = 0;
+		bool atLineStart = true;
+
+		while (i < code.Length)
+		{
+			if (atLineStart)
+			{
+				int indentStart = i;
+				while (i < code.Length && (code[i] == ' ' || code[i] == '\t'))
+				{
+					i++;
+				}
+
+				if (i > indentStart)
+				{
+					var indent = code.Substring(indentStart, i - indentStart);
+					if (indent.Contains(' '))
+					{
+						fixes++;
+						int spaceCount = 0;
+						foreach (char c in indent)
+						{
+							if (c == '\t')
+							{
+								sb.Append('\t');
+								spaceCount = 0;
+							}
+							else if (c == ' ')
+							{
+								spaceCount++;
+								if (spaceCount == 4)
+								{
+									sb.Append('\t');
+									spaceCount = 0;
+								}
+							}
+						}
+						if (spaceCount > 0)
+						{
+							sb.Append('\t');
+						}
+					}
+					else
+					{
+						sb.Append(indent);
+					}
+				}
+				atLineStart = false;
+			}
+			else
+			{
+				char c = code[i++];
+				sb.Append(c);
+				if (c == '\n')
+				{
+					atLineStart = true;
+				}
+			}
+		}
+
+		return (sb.ToString(), fixes);
 	}
 
 	private static bool HasOsLibUsing(SyntaxNode root)
@@ -665,206 +791,20 @@ public static class Program
 		}
 	}
 
-	private static bool IsDirectoryTypeAccess(ExpressionSyntax expression)
-	{
-		if (expression is IdentifierNameSyntax id)
-		{
-			return id.Identifier.Text == "Directory";
-		}
-		if (expression is MemberAccessExpressionSyntax ma)
-		{
-			var text = ma.ToString();
-			return text is "System.IO.Directory" or "IO.Directory";
-		}
-		return false;
-	}
-
-	private static bool IsFileTypeAccess(ExpressionSyntax expression)
-	{
-		if (expression is IdentifierNameSyntax id)
-		{
-			return id.Identifier.Text == "File";
-		}
-		if (expression is MemberAccessExpressionSyntax ma)
-		{
-			var text = ma.ToString();
-			return text is "System.IO.File" or "IO.File";
-		}
-		return false;
-	}
-
-	private static bool IsPathTypeAccess(ExpressionSyntax expression)
-	{
-		if (expression is IdentifierNameSyntax id)
-		{
-			return id.Identifier.Text == "Path";
-		}
-		if (expression is MemberAccessExpressionSyntax ma)
-		{
-			var text = ma.ToString();
-			return text is "System.IO.Path" or "IO.Path";
-		}
-		return false;
-	}
-
 	private static List<DiagnosticRecord> AnalyzeFile(string filePath, string? ruleFilter)
 	{
-		var records = new List<DiagnosticRecord>();
 		var code = File.ReadAllText(filePath);
-		var tree = CSharpSyntaxTree.ParseText(code);
-		var root = tree.GetRoot();
+		var tree = CSharpSyntaxTree.ParseText(code, path: filePath);
+		var findings = RaiKeepArchitectureAnalyzer.AnalyzeSyntaxRoot(tree, ruleFilter, includeSystemIoAndFormatting: true);
 
-		// Intercept System.IO.Directory / Directory and System.IO.File / File invocations
-		var invocations = root.DescendantNodes().OfType<InvocationExpressionSyntax>();
-
-		foreach (var inv in invocations)
-		{
-			if (inv.Expression is MemberAccessExpressionSyntax memberAccess)
-			{
-				if (IsDirectoryTypeAccess(memberAccess.Expression))
-				{
-					if (ruleFilter != null && !ruleFilter.Equals("RAI001", StringComparison.OrdinalIgnoreCase))
-					{
-						continue;
-					}
-
-					var lineSpan = memberAccess.Name.GetLocation().GetLineSpan();
-					var line = lineSpan.StartLinePosition.Line + 1;
-					var col = lineSpan.StartLinePosition.Character + 1;
-					var methodName = memberAccess.Name.Identifier.Text;
-
-					records.Add(new DiagnosticRecord(
-						RuleId: "RAI001",
-						Message: string.Format(DiagnosticDescriptors.ProhibitSystemIoDirectory.MessageFormat.ToString(), methodName),
-						File: filePath,
-						Line: line,
-						Column: col));
-				}
-				else if (IsFileTypeAccess(memberAccess.Expression))
-				{
-					if (ruleFilter != null && !ruleFilter.Equals("RAI002", StringComparison.OrdinalIgnoreCase))
-					{
-						continue;
-					}
-
-					var lineSpan = memberAccess.Name.GetLocation().GetLineSpan();
-					var line = lineSpan.StartLinePosition.Line + 1;
-					var col = lineSpan.StartLinePosition.Character + 1;
-					var methodName = memberAccess.Name.Identifier.Text;
-
-					records.Add(new DiagnosticRecord(
-						RuleId: "RAI002",
-						Message: string.Format(DiagnosticDescriptors.ProhibitSystemIoFile.MessageFormat.ToString(), methodName),
-						File: filePath,
-						Line: line,
-						Column: col));
-				}
-				else if (IsPathTypeAccess(memberAccess.Expression))
-				{
-					if (ruleFilter != null && !ruleFilter.Equals("RAI003", StringComparison.OrdinalIgnoreCase))
-					{
-						continue;
-					}
-
-					var lineSpan = memberAccess.Name.GetLocation().GetLineSpan();
-					var line = lineSpan.StartLinePosition.Line + 1;
-					var col = lineSpan.StartLinePosition.Character + 1;
-					var methodName = memberAccess.Name.Identifier.Text;
-
-					records.Add(new DiagnosticRecord(
-						RuleId: "RAI003",
-						Message: string.Format(DiagnosticDescriptors.ProhibitSystemIoPath.MessageFormat.ToString(), methodName),
-						File: filePath,
-						Line: line,
-						Column: col));
-				}
-			}
-		}
-
-		if (ruleFilter == null || ruleFilter.Equals("RAI010", StringComparison.OrdinalIgnoreCase))
-		{
-			var text = tree.GetText();
-
-			var immuneSpans = new List<Microsoft.CodeAnalysis.Text.TextSpan>();
-			foreach (var token in root.DescendantTokens(descendIntoTrivia: true))
-			{
-				if (token.IsKind(SyntaxKind.StringLiteralToken) ||
-					token.IsKind(SyntaxKind.CharacterLiteralToken) ||
-					token.IsKind(SyntaxKind.InterpolatedStringTextToken) ||
-					token.IsKind(SyntaxKind.SingleLineRawStringLiteralToken) ||
-					token.IsKind(SyntaxKind.MultiLineRawStringLiteralToken) ||
-					token.IsKind(SyntaxKind.Utf8StringLiteralToken) ||
-					token.IsKind(SyntaxKind.Utf8SingleLineRawStringLiteralToken) ||
-					token.IsKind(SyntaxKind.Utf8MultiLineRawStringLiteralToken))
-				{
-					immuneSpans.Add(token.Span);
-				}
-			}
-
-			foreach (var line in text.Lines)
-			{
-				if (line.Span.Length == 0) continue;
-				if (immuneSpans.Any(s => s.Start < line.Start && line.Start < s.End)) continue;
-
-				var lineStr = line.ToString();
-				int indentLen = 0;
-				while (indentLen < lineStr.Length && (lineStr[indentLen] == ' ' || lineStr[indentLen] == '\t'))
-				{
-					indentLen++;
-				}
-
-				if (indentLen > 0)
-				{
-					var indent = lineStr.Substring(0, indentLen);
-					if (indent.Contains(' '))
-					{
-						var lineNum = line.LineNumber + 1;
-						var col = lineStr.IndexOf(' ') + 1;
-						records.Add(new DiagnosticRecord(
-							RuleId: "RAI010",
-							Message: WhitespaceFormattingAnalyzer.TabIndentationMessage,
-							File: filePath,
-							Line: lineNum,
-							Column: col));
-					}
-				}
-			}
-
-			var tokens = root.DescendantTokens(descendIntoTrivia: false)
-				.Where(t => !t.IsKind(SyntaxKind.EndOfFileToken))
-				.ToList();
-
-			for (int i = 0; i < tokens.Count - 1; i++)
-			{
-				var tokenA = tokens[i];
-				var tokenB = tokens[i + 1];
-
-				var lineA = text.Lines.GetLineFromPosition(tokenA.Span.End).LineNumber;
-				var lineB = text.Lines.GetLineFromPosition(tokenB.Span.Start).LineNumber;
-
-				if (lineA == lineB)
-				{
-					var spanBetween = Microsoft.CodeAnalysis.Text.TextSpan.FromBounds(tokenA.Span.End, tokenB.Span.Start);
-					if (spanBetween.Length >= 2)
-					{
-						var betweenText = text.ToString(spanBetween);
-						int spaceIdx = betweenText.IndexOf("  ", StringComparison.Ordinal);
-						if (spaceIdx >= 0)
-						{
-							var linePos = text.Lines.GetLinePosition(tokenA.Span.End + spaceIdx);
-							records.Add(new DiagnosticRecord(
-								RuleId: "RAI010",
-								Message: WhitespaceFormattingAnalyzer.ConsecutiveSpacesMessage,
-								File: filePath,
-								Line: linePos.Line + 1,
-								Column: linePos.Character + 1));
-						}
-					}
-				}
-			}
-		}
-
-		return records;
+		return findings
+			.Select(f => new DiagnosticRecord(
+				RuleId: f.RuleId,
+				Message: f.Message,
+				File: filePath,
+				Line: f.Line,
+				Column: f.Column))
+			.ToList();
 	}
 
 	private static List<string> ResolveSourceFiles(string? path)
@@ -908,7 +848,7 @@ public static class Program
 			.InformationalVersion
 			.Split('+')[0]
 			?? assembly.GetName().Version?.ToString()
-			?? "4.5.8";
+			?? "4.5.10";
 		return $"{name} v{version}";
 	}
 

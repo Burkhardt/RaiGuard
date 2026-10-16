@@ -276,28 +276,48 @@ rail check --json
 
 | Rule ID | Severity | Description | Remedy |
 |---------|----------|-------------|--------|
-| `RAI001` | Warning | Direct usage of `System.IO.Directory` methods is prohibited | Use `RaiPath` methods (e.g. `pitDir.mkdir()`, `new RaiPath(path).EnumerateDirectories()`, `new RaiPath(path).EnumerateFiles()`) |
-| `RAI002` | Warning | Direct usage of `System.IO.File` methods is prohibited | Use `RaiFile` or `TextFile` methods (e.g. `new RaiFile(path).Exists()`, `new RaiFile(path).rm()`, `new TextFile(path).Read()`, `new TextFile(path, content)`) |
-| `RAI003` | Warning | Direct usage of `System.IO.Path` methods is prohibited | Use `RaiPath` or `RaiRelPath` with operator `/` (e.g. `root / "subDir"`) |
-| `RAI010` | Warning | Tab indentation required and consecutive spaces prohibited | Indent code with tabs (`\t`) and use single spaces between tokens outside string and character literals |
+| `RAI001` | Warning | Direct usage of `System.IO.Directory` or `DirectoryInfo` is prohibited | Use `RaiPath` methods (`pitDir.mkdir()`, `new RaiPath(path).EnumerateDirectories()`, `new RaiPath(path).EnumerateFiles()`) |
+| `RAI002` | Warning | Direct usage of `System.IO.File`, `FileInfo`, file streams, or `ZipFile` is prohibited | Use `RaiFile`, `TextFile`, `JsonFile`, `CsvFile`, or `TmpFile` (`Exists()`, `rm()`, `Read()`, `ReadAllText()`, `Zip()`, `Unzip()`) |
+| `RAI003` | Warning | Direct usage of `System.IO.Path` methods, method groups, or separator fields is prohibited | Use `RaiPath` / `RaiRelPath` with operator `/` (`root / "subDir"`), `RaiFile.Name`, or `RaiFile.NameWithoutExtension` |
+| `RAI004` | Warning | `new RaiPath("...")` string literal missing trailing `/` strips last segment as filename | Terminate directory literal with `/` (`new RaiPath("/tmp/dir/")`) or compose segments with `/` (`new RaiPath("/tmp/") / "dir"`) |
+| `RAI005` | Warning | String concatenation with `Os.DIR` or `"/"` on `RaiPath` produces `//` and bypasses typed constructors | Compose directories with `dir / "sub"` and construct files via `new RaiFile(dir, name, ext)` or `new TextFile(dir, name, ext)` |
+| `RAI006` | Warning | Bypassing typed `OsLib` `CliCommand` wrappers via `System.Diagnostics.Process` or raw `new RaiSystem("pits"\|"iorg"\|"raid"\|"amafu", ...)` | Use `PitsCommand`, `IorgCommand`, `RaidCommand`, `AmafuCommand`, or `CliCommand` (preserving `PitsCommand.TargetGates` semaphore serialization) |
+| `RAI007` | Warning | Bypassing sacred `Os.Config` via `Environment.*`, `AppDomain.CurrentDomain.BaseDirectory`, or `Directory.GetCurrentDirectory()` | Read configuration from `Os.Config`, `Os.UserHomeDir`, `Os.TempDir`, or `Os.AppRoot` |
+| `RAI008` | Warning | Cloud-storage in-place write invariant (`CR022`) violated (`rm()` before `Save()`/`cp()` or `.mv(tmp)` from temp storage) | Mutate and call `.Save()` or `dest.cp(source)` in-place; for temp staging use `dest.cp(tmp); tmp.rm();` |
+| `RAI009` | Warning | Inverted `OsLib` `cp` / `mv` receiver order (`source.cp(dest)` instead of `dest.cp(source)`) | Call `dest.cp(source)` or `dest.mv(source)` where the **destination** `RaiFile` is `this` |
+| `RAI010` | Warning | Tab indentation required and consecutive spaces prohibited | Indent code with tabs (`\t`) and use single spaces between tokens outside string and character literals (`rail fix --rule RAI010`) |
+| `RAI020` | Warning | `Pit` full-snapshot read-modify-write (`CR040`) overwrites concurrent cloud-synced fields | Construct a sparse delta `var delta = new PitItem(id); delta.ExtendWith(patch); pit.Add(delta);` or mutate live properties on `pit.Get(id)` |
+| `RAI021` | Warning | Direct mutation of protected `PitItem` lifecycle attributes (`Id`, `Modified`, `Deleted`) | Use `new PitItem(id)`, `item.Delete()`, `item.Undel()`, and strip `Id`/`Modified`/`Deleted` from external `ExtendWith` payloads |
+| `RAI022` | Warning | `pit.PitDir.Exists()` triggers `mkdir()` on disk; `pit.Reload()` calls `Save()` and overwrites external seeds | Use `pit.JsonFile.Path.Exists()` for side-effect-free checks and `pit.Load()` to refresh external seeds |
+| `RAI023` | Warning | Undisposed `Pit` instance leaks `ActiveCanonicalPitPaths` reservation (`CR033`) | Wrap `new Pit(...)` in `using var pit = ...` or dispose the `_pit` field in `IDisposable.Dispose()` |
+| `RAI024` | Warning | Unexpanded `{...}`/`<...>` template placeholders in `PitItem` IDs (`CR049`) or `JObject.Parse` without `DateParseHandling.None` | Validate IDs before `new PitItem(id)` and parse JSON via `JsonFile` or `JsonReader` with `DateParseHandling.None` |
+| `RAI030` | Warning | Obsolete `RaiImage.WordCase` (`CR019`), non-alphanumeric `DiagramBuilder` `baseItemId` (`CR025`), or non-`Structured` `ImageNamingConvention` | Use `RaiUtils.WordCase`, alphanumeric `baseItemId` without `_UCD`/`_CD` suffixes, and `ImageNamingConvention.Structured` |
 
 ### Idiomatic Platform Patterns
 
 - **Path Composition (Operator `/`)**:
   ```csharp
-  var myPath = new RaiPath("~") / ".config" / "app";
+  var myPath = new RaiPath("~/") / ".config" / "app";
   var tenantDir = weatherRoot / $"DailyHeat-{city.Slug}";
-  // Never use System.IO.Path.Combine
+  // Never use System.IO.Path.Combine or omit the trailing slash on new RaiPath("...")
   ```
 - **Directory Operations**:
   ```csharp
   tenantDir.mkdir();
-  var subdirs = new RaiPath(root).EnumerateDirectories();
-  var files = new RaiPath(root).EnumerateFiles("*.json");
+  var subdirs = tenantDir.EnumerateDirectories();
+  var files = tenantDir.EnumerateFiles("*.json");
   ```
-- **Writing / Appending to Files**:
+- **Writing / Appending to Files (Cloud-Safe In-Place)**:
   ```csharp
-  new TextFile(filePath, "line one\nline two"); // Writes atomically to disk
+  new TextFile(filePath, "line one\nline two"); // Writes in-place to preserve cloud file ID
+  ```
+- **Sparse Pit Delta Writes (`CR040`)**:
+  ```csharp
+  using var pit = new Pit(pitPath, readOnly: false, autoload: true);
+  var delta = new PitItem(id);
+  delta.ExtendWith(patch);
+  pit.Add(delta);
+  pit.Save();
   ```
 - **Reading Files**:
   ```csharp
@@ -307,12 +327,12 @@ rail check --json
   ```csharp
   var tf = new TextFile(filePath).Read();
   tf.Delete(0);             // Marks Changed = true
-  tf.DeleteAll().Save();    // Commits empty file to disk
+  tf.DeleteAll().Save();    // Commits empty file to disk in-place
   ```
 - **File Existence & Removal**:
   ```csharp
   bool exists = new RaiFile(filePath).Exists();
-  new RaiFile(filePath).rm(); // POSIX rm()
+  new RaiFile(filePath).rm(); // POSIX rm() — only for true deletion, never before Save()
   ```
 
 ---
@@ -337,13 +357,15 @@ RaiGuard/
 │   │   ├── Rules/SystemIoFileAnalyzer.cs
 │   │   ├── Rules/SystemIoPathAnalyzer.cs
 │   │   ├── Rules/WhitespaceFormattingAnalyzer.cs
+│   │   ├── Rules/RaiKeepArchitectureAnalyzer.cs
 │   │   └── Helpers/SemanticExtensions.cs
 │   │
 │   ├── RaiGuard.CodeFixes/               # 4. Automated Code Fix Providers (netstandard2.0)
 │   │   ├── RaiGuard.CodeFixes.csproj
 │   │   ├── Fixes/SystemIoDirectoryCodeFix.cs
 │   │   ├── Fixes/SystemIoFileCodeFix.cs
-│   │   └── Fixes/SystemIoPathCodeFix.cs
+│   │   ├── Fixes/SystemIoPathCodeFix.cs
+│   │   └── Fixes/RaiKeepArchitectureCodeFix.cs
 │   │
 │   └── RaiGuard.Package/                 # 5. Analyzer NuGet Packaging Project
 │       └── RaiGuard.Package.csproj       # Packages analyzers into analyzers/dotnet/cs
@@ -354,7 +376,8 @@ RaiGuard/
 │       ├── SystemIoDirectoryAnalyzerTests.cs
 │       ├── SystemIoFileAnalyzerTests.cs
 │       ├── SystemIoPathAnalyzerTests.cs
-│       └── WhitespaceFormattingAnalyzerTests.cs
+│       ├── WhitespaceFormattingAnalyzerTests.cs
+│       └── RaiKeepArchitectureAnalyzerTests.cs
 │
 ├── samples/
 │   └── HeatRecord/                       # 7. Sample App & Tutorial (Sparse Pit + Guardrails)

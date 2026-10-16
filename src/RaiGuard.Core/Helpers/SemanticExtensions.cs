@@ -4,54 +4,69 @@ namespace RaiGuard.Core.Helpers;
 
 public static class SemanticExtensions
 {
-    public static bool IsSystemIoDirectory(this ISymbol? symbol)
-    {
-        if (symbol is null)
-        {
-            return false;
-        }
+	public static bool IsSystemIoDirectory(this ISymbol? symbol)
+	{
+		if (symbol is null)
+		{
+			return false;
+		}
 
-        var containingType = symbol as INamedTypeSymbol ?? symbol.ContainingType;
-        if (containingType is null)
-        {
-            return false;
-        }
+		var containingType = symbol as INamedTypeSymbol ?? symbol.ContainingType;
+		if (containingType is null)
+		{
+			return false;
+		}
 
-        return containingType.Name == "Directory" &&
-               containingType.ContainingNamespace is { Name: "IO", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } };
-    }
+		return (containingType.Name == "Directory" || containingType.Name == "DirectoryInfo") &&
+			containingType.ContainingNamespace is { Name: "IO", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } };
+	}
 
-    public static bool IsSystemIoFile(this ISymbol? symbol)
-    {
-        if (symbol is null)
-        {
-            return false;
-        }
+	public static bool IsSystemIoFile(this ISymbol? symbol)
+	{
+		if (symbol is null)
+		{
+			return false;
+		}
 
-        var containingType = symbol as INamedTypeSymbol ?? symbol.ContainingType;
-        if (containingType is null)
-        {
-            return false;
-        }
+		var containingType = symbol as INamedTypeSymbol ?? symbol.ContainingType;
+		if (containingType is null)
+		{
+			return false;
+		}
 
-        return containingType.Name == "File" &&
-               containingType.ContainingNamespace is { Name: "IO", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } };
-    }
+		if ((containingType.Name == "File" ||
+			containingType.Name == "FileInfo" ||
+			containingType.Name == "FileStream" ||
+			containingType.Name == "StreamReader" ||
+			containingType.Name == "StreamWriter") &&
+			containingType.ContainingNamespace is { Name: "IO", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } })
+		{
+			return true;
+		}
 
-    public static bool IsSystemIoPath(this ISymbol? symbol)
-    {
-        if (symbol is null)
-        {
-            return false;
-        }
+		if (containingType.Name == "ZipFile" &&
+			containingType.ContainingNamespace is { Name: "Compression", ContainingNamespace: { Name: "IO", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } } })
+		{
+			return true;
+		}
 
-        var containingType = symbol as INamedTypeSymbol ?? symbol.ContainingType;
-        if (containingType is null)
-        {
-            return false;
-        }
+		return false;
+	}
 
-        return containingType.Name == "Path" &&
-               containingType.ContainingNamespace is { Name: "IO", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } };
-    }
+	public static bool IsSystemIoPath(this ISymbol? symbol)
+	{
+		if (symbol is null)
+		{
+			return false;
+		}
+
+		var containingType = symbol as INamedTypeSymbol ?? symbol.ContainingType;
+		if (containingType is null)
+		{
+			return false;
+		}
+
+		return containingType.Name == "Path" &&
+			containingType.ContainingNamespace is { Name: "IO", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } };
+	}
 }

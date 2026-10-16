@@ -463,4 +463,131 @@ public class Sample
             }
         }
     }
+
+    [Fact]
+    public void Main_RulesCommand_ListsAllSixteenRules()
+    {
+        var originalOut = Console.Out;
+        using var sw = new StringWriter();
+        Console.SetOut(sw);
+
+        try
+        {
+            var exitCode = Program.Main(["rules", "-n"]);
+            Assert.Equal(0, exitCode);
+            var output = sw.ToString();
+            foreach (var ruleId in new[]
+            {
+                "RAI001", "RAI002", "RAI003", "RAI004", "RAI005", "RAI006",
+                "RAI007", "RAI008", "RAI009", "RAI010", "RAI020", "RAI021",
+                "RAI022", "RAI023", "RAI024", "RAI030"
+            })
+            {
+                Assert.Contains(ruleId, output);
+            }
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    [Fact]
+    public void Check_DetectsArchitecturalAndJsonPitViolations()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
+        File.WriteAllText(tempFile, @"
+using System;
+
+public class Sample
+{
+	public void Run(Pit activityPit, RaiPath promptDir, RaiFile sourceFile, RaiFile destFile)
+	{
+		var root = new RaiPath(""/tmp/missing_slash"");
+		var f = new TextFile(promptDir.ToString() + Os.DIR + ""prompt.md"");
+		var sys = new RaiSystem(""pits"", ""list"");
+		Environment.SetEnvironmentVariable(""Cloud__Root"", ""/tmp"");
+		sourceFile.cp(destFile);
+
+		var existing = activityPit.Get(""Sipho"");
+		existing.ExtendWith(new JObject { [""Id""] = ""Sipho"" });
+		activityPit.Add(existing);
+
+		if (activityPit.PitDir.Exists())
+		{
+			activityPit.Reload();
+		}
+
+		var localPit = new Pit(""Person"");
+		var badItem = new PitItem(""{TemplateId}"");
+		var parsed = JObject.Parse(""{}"");
+		var builder = new OneUseCaseDiagramBuilder(""Order_UCD"");
+		var conv = ImageNamingConvention.Legacy;
+	}
+}");
+
+        var originalOut = Console.Out;
+        using var sw = new StringWriter();
+        Console.SetOut(sw);
+
+        try
+        {
+            var exitCode = Program.Main(["check", "-p", tempFile, "-n", "--json"]);
+            Assert.Equal(1, exitCode);
+            var output = sw.ToString();
+            Assert.Contains("RAI004", output);
+            Assert.Contains("RAI005", output);
+            Assert.Contains("RAI006", output);
+            Assert.Contains("RAI007", output);
+            Assert.Contains("RAI009", output);
+            Assert.Contains("RAI020", output);
+            Assert.Contains("RAI021", output);
+            Assert.Contains("RAI022", output);
+            Assert.Contains("RAI023", output);
+            Assert.Contains("RAI024", output);
+            Assert.Contains("RAI030", output);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Fact]
+    public void Fix_RewritesRaiPathTrailingSlash_PitDirExists_AndImageNamingConvention()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
+        File.WriteAllText(tempFile, @"
+public class Sample
+{
+	public void Run(Pit userPit)
+	{
+		var root = new RaiPath(""/Users/rsb/temp/AfricaStage_TestRoot"");
+		var exists = userPit.PitDir.Exists();
+		var conv = ImageNamingConvention.Legacy;
+	}
+}");
+
+        try
+        {
+            var exitCode = Program.Main(["fix", "-p", tempFile, "-n"]);
+            Assert.Equal(0, exitCode);
+
+            var updated = File.ReadAllText(tempFile);
+            Assert.Contains("new RaiPath(\"/Users/rsb/temp/AfricaStage_TestRoot/\")", updated);
+            Assert.Contains("userPit.JsonFile.Path.Exists()", updated);
+            Assert.Contains("ImageNamingConvention.Structured", updated);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
 }
