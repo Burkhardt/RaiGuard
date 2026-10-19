@@ -400,28 +400,29 @@ jpit get DailyHeat SanDiego-10-08 -r Weather
 |-------|---------|-----------------|
 | **Honeypot Diagnostics** | `rail check samples/HeatRecord/Program.Naive.cs` | 35 violations across `RAI001`, `RAI002`, `RAI003`, `RAI010` |
 | **Clean Implementation** | `rail check samples/HeatRecord/Program.cs` | 0 violations (`All guardrails passed`) |
+| **Group Set Discovery** | `rail groups` | Lists 6 overlapping group sets (`OsLib`, `CloudSync`, `JsonPit`, `CliCommand`, `RaiMedia`, `Formatting`) |
 | **Solution Build** | `dotnet build RaiGuard.slnx` | `Build succeeded. 0 Warning(s) 0 Error(s)` |
-| **Unit & CLI Tests** | `dotnet test RaiGuard.slnx` | `Passed! 53/53 tests` (34 `RaiGuard.Tests`, 19 `rail.Tests`) |
+| **Unit & CLI Tests** | `dotnet test RaiGuard.slnx` | `Passed! 55/55 tests` (34 `RaiGuard.Tests`, 21 `rail.Tests`) |
 
 ---
 
-## Summary of Guardrail Rules
+## Summary of Guardrail Rules (`RAI001`–`RAI016`)
 
-| Rule | Category | Description | Required Remediation |
-|------|----------|-------------|----------------------|
-| **`RAI001`** | Reliability | `System.IO.Directory` and `DirectoryInfo` are prohibited | Use `RaiPath` methods (`mkdir()`, `EnumerateDirectories()`, `EnumerateFiles()`, `rmdir()`) |
-| **`RAI002`** | Reliability | `System.IO.File`, `FileInfo`, file streams, and `ZipFile` are prohibited | Use `RaiFile`, `TextFile`, `JsonFile`, `CsvFile`, or `TmpFile` (`new TextFile(path, content)`, `Read()`, `rm()`, `Zip()`, `Unzip()`) |
-| **`RAI003`** | Reliability | `System.IO.Path` methods, method groups, and separator fields are prohibited | Use `RaiPath` / `RaiRelPath` operator `/` (`root / "subDir"`), `RaiFile.Name`, or `RaiFile.NameWithoutExtension` |
-| **`RAI004`** | Reliability | `new RaiPath("...")` string literal missing trailing `/` strips last segment as filename | Terminate directory string literal with `/` (`new RaiPath("/tmp/dir/")`) or compose with operator `/` |
-| **`RAI005`** | Reliability | String concatenation with `Os.DIR` or `"/"` on `RaiPath` produces `//` | Compose directories with `dir / "sub"` and construct files via `new RaiFile(dir, name, ext)` or `new TextFile(dir, name, ext)` |
-| **`RAI006`** | Reliability | Bypassing typed `OsLib` `CliCommand` wrappers via `Process` or raw `new RaiSystem(...)` | Use `PitsCommand`, `IorgCommand`, `RaidCommand`, `AmafuCommand`, or `CliCommand` |
-| **`RAI007`** | Reliability | Bypassing sacred `Os.Config` via `Environment.*` or `AppDomain` | Read configuration from `Os.Config`, `Os.UserHomeDir`, `Os.TempDir`, or `Os.AppRoot` |
-| **`RAI008`** | Reliability | Cloud-storage in-place write invariant (`CR022`) violated | Mutate and call `.Save()` or `dest.cp(source)` in-place; for temp staging use `dest.cp(tmp); tmp.rm();` |
-| **`RAI009`** | Reliability | Inverted `OsLib` `cp` / `mv` receiver order (`source.cp(dest)`) | Call `dest.cp(source)` or `dest.mv(source)` where the **destination** `RaiFile` is `this` |
-| **`RAI010`** | Formatting | Space indentation and consecutive spaces prohibited | Indent exclusively with tabs (`\t`), single space between tokens outside strings (`rail fix --rule RAI010`) |
-| **`RAI020`** | Reliability | `Pit` full-snapshot read-modify-write (`CR040`) overwrites concurrent cloud fields | Construct a sparse delta `var delta = new PitItem(id); delta.ExtendWith(patch); pit.Add(delta);` or mutate live properties on `pit.Get(id)` |
-| **`RAI021`** | Reliability | Direct mutation of protected `PitItem` lifecycle attributes (`Id`, `Modified`, `Deleted`) | Use `new PitItem(id)`, `item.Delete()`, `item.Undel()`, and strip `Id`/`Modified`/`Deleted` from external `ExtendWith` payloads |
-| **`RAI022`** | Reliability | `pit.PitDir.Exists()` triggers `mkdir()` on disk; `pit.Reload()` calls `Save()` | Use `pit.JsonFile.Path.Exists()` for side-effect-free checks and `pit.Load()` to refresh external seeds |
-| **`RAI023`** | Reliability | Undisposed `Pit` instance leaks `ActiveCanonicalPitPaths` reservation (`CR033`) | Wrap `new Pit(...)` in `using var pit = ...` or dispose `_pit` in `IDisposable.Dispose()` |
-| **`RAI024`** | Reliability | Unexpanded `{...}`/`<...>` placeholders in `PitItem` IDs (`CR049`) or unsafe `JObject.Parse` | Validate IDs before `new PitItem(id)` and parse JSON via `JsonFile` or `JsonReader` with `DateParseHandling.None` |
-| **`RAI030`** | Reliability | Obsolete `RaiImage.WordCase` (`CR019`), non-alphanumeric `DiagramBuilder` `baseItemId` (`CR025`), or non-`Structured` `ImageNamingConvention` | Use `RaiUtils.WordCase`, alphanumeric `baseItemId` without `_UCD`/`_CD` suffixes, and `ImageNamingConvention.Structured` |
+| Rule | Groups | Description | Required Remediation |
+|------|--------|-------------|----------------------|
+| **`RAI001`** | `OsLib`, `CloudSync` | `System.IO.Directory` and `DirectoryInfo` are prohibited | Use `RaiPath` methods (`mkdir()`, `EnumerateDirectories()`, `EnumerateFiles()`, `rmdir()`) |
+| **`RAI002`** | `OsLib`, `CloudSync` | `System.IO.File`, `FileInfo`, file streams, and `ZipFile` are prohibited | Use `RaiFile`, `TextFile`, `JsonFile`, `CsvFile`, or `TmpFile` (`new TextFile(path, content)`, `Read()`, `rm()`, `Zip()`, `Unzip()`) |
+| **`RAI003`** | `OsLib` | `System.IO.Path` methods, method groups, and separator fields are prohibited | Use `RaiPath` / `RaiRelPath` operator `/` (`root / "subDir"`), `RaiFile.Name`, or `RaiFile.NameWithoutExtension` |
+| **`RAI004`** | `OsLib`, `CloudSync` | `new RaiPath("...")` string literal missing trailing `/` strips last segment as filename | Terminate directory string literal with `/` (`new RaiPath("/tmp/dir/")`) or compose with operator `/` |
+| **`RAI005`** | `OsLib` | String concatenation with `Os.DIR` or `"/"` on `RaiPath` produces `//` | Compose directories with `dir / "sub"` and construct files via `new RaiFile(dir, name, ext)` or `new TextFile(dir, name, ext)` |
+| **`RAI006`** | `OsLib`, `JsonPit`, `CliCommand`, `RaiMedia` | Bypassing typed `OsLib` `CliCommand` wrappers via `Process` or raw `new RaiSystem(...)` | Use `PitsCommand`, `IorgCommand`, `RaidCommand`, `AmafuCommand`, or `CliCommand` |
+| **`RAI007`** | `OsLib`, `CloudSync` | Bypassing sacred `Os.Config` via `Environment.*` or `AppDomain` | Read configuration from `Os.Config`, `Os.UserHomeDir`, `Os.TempDir`, or `Os.AppRoot` |
+| **`RAI008`** | `OsLib`, `CloudSync`, `JsonPit`, `RaiMedia` | Cloud-storage in-place write invariant (`CR022`) violated | Mutate and call `.Save()` or `dest.cp(source)` in-place; for temp staging use `dest.cp(tmp); tmp.rm();` |
+| **`RAI009`** | `OsLib` | Inverted `OsLib` `cp` / `mv` receiver order (`source.cp(dest)`) | Call `dest.cp(source)` or `dest.mv(source)` where the **destination** `RaiFile` is `this` |
+| **`RAI010`** | `Formatting` | Space indentation and consecutive spaces prohibited | Indent exclusively with tabs (`\t`), single space between tokens outside strings (`rail fix --rule RAI010`) |
+| **`RAI011`** | `JsonPit`, `CloudSync` | `Pit` full-snapshot read-modify-write (`CR040`) overwrites concurrent cloud fields | Construct a sparse delta `var delta = new PitItem(id); delta.ExtendWith(patch); pit.Add(delta);` or mutate live properties on `pit.Get(id)` |
+| **`RAI012`** | `JsonPit` | Direct mutation of protected `PitItem` lifecycle attributes (`Id`, `Modified`, `Deleted`) | Use `new PitItem(id)`, `item.Delete()`, `item.Undel()`, and strip `Id`/`Modified`/`Deleted` from external `ExtendWith` payloads |
+| **`RAI013`** | `JsonPit`, `CloudSync`, `CliCommand` | `pit.PitDir.Exists()` triggers `mkdir()` on disk; `pit.Reload()` calls `Save()` | Use `pit.JsonFile.Path.Exists()` for side-effect-free checks and `pit.Load()` to refresh external seeds |
+| **`RAI014`** | `JsonPit`, `CloudSync` | Undisposed `Pit` instance leaks `ActiveCanonicalPitPaths` reservation (`CR033`) | Wrap `new Pit(...)` in `using var pit = ...` or dispose `_pit` in `IDisposable.Dispose()` |
+| **`RAI015`** | `JsonPit` | Unexpanded `{...}`/`<...>` placeholders in `PitItem` IDs (`CR049`) or unsafe `JObject.Parse` | Validate IDs before `new PitItem(id)` and parse JSON via `JsonFile` or `JsonReader` with `DateParseHandling.None` |
+| **`RAI016`** | `RaiMedia` | Obsolete `RaiImage.WordCase` (`CR019`), non-alphanumeric `DiagramBuilder` `baseItemId` (`CR025`), or non-`Structured` `ImageNamingConvention` | Use `RaiUtils.WordCase`, alphanumeric `baseItemId` without `_UCD`/`_CD` suffixes, and `ImageNamingConvention.Structured` |

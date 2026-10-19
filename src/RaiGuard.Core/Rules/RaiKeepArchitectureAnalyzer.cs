@@ -117,14 +117,15 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 	public static List<SyntaxDiagnosticFinding> AnalyzeSyntaxRoot(
 		SyntaxTree tree,
 		string? ruleFilter = null,
-		bool includeSystemIoAndFormatting = true)
+		bool includeSystemIoAndFormatting = true,
+		string? groupFilter = null)
 	{
 		var findings = new List<SyntaxDiagnosticFinding>();
 		var root = tree.GetRoot();
+		var filterSet = DiagnosticDescriptors.ResolveFilterSet(ruleFilter, groupFilter);
 
 		bool MatchesRule(string id) =>
-			string.IsNullOrWhiteSpace(ruleFilter) ||
-			ruleFilter!.Equals(id, StringComparison.OrdinalIgnoreCase);
+			filterSet == null || filterSet.Contains(id);
 
 		void AddFinding(DiagnosticDescriptor descriptor, Location location, params object[] messageArgs)
 		{
@@ -156,7 +157,7 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			AnalyzeSystemIoSyntax(root, MatchesRule, AddFinding);
 		}
 
-		// 2. Object Creation Rules (RAI004, RAI005, RAI006, RAI024, RAI030)
+		// 2. Object Creation Rules (RAI004, RAI005, RAI006, RAI015, RAI016)
 		foreach (var creation in root.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
 		{
 			var typeName = GetSimpleTypeName(creation.Type);
@@ -221,8 +222,8 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 				}
 			}
 
-			// RAI024: new PitItem("...") with invalid live ID ('{' or '<' or whitespace)
-			if (typeName == "PitItem" && args.Count >= 1 && MatchesRule("RAI024"))
+			// RAI015: new PitItem("...") with invalid live ID ('{' or '<' or whitespace)
+			if (typeName == "PitItem" && args.Count >= 1 && MatchesRule("RAI015"))
 			{
 				if (args[0].Expression is LiteralExpressionSyntax lit && lit.IsKind(SyntaxKind.StringLiteralExpression))
 				{
@@ -237,8 +238,8 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 				}
 			}
 
-			// RAI030: new *DiagramBuilder("...") with '_' in baseItemId
-			if (DiagramBuilderTypes.Contains(typeName) && args.Count >= 1 && MatchesRule("RAI030"))
+			// RAI016: new *DiagramBuilder("...") with '_' in baseItemId
+			if (DiagramBuilderTypes.Contains(typeName) && args.Count >= 1 && MatchesRule("RAI016"))
 			{
 				if (args[0].Expression is LiteralExpressionSyntax lit && lit.IsKind(SyntaxKind.StringLiteralExpression))
 				{
@@ -283,7 +284,7 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			}
 		}
 
-		// 4. Invocations (RAI006, RAI007, RAI009, RAI021, RAI022, RAI024)
+		// 4. Invocations (RAI006, RAI007, RAI009, RAI012, RAI013, RAI015)
 		foreach (var inv in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
 		{
 			if (inv.Expression is not MemberAccessExpressionSyntax ma)
@@ -332,8 +333,8 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 				}
 			}
 
-			// RAI021: Protected PitItem attributes in ExtendWith / SetProperty / DeleteProperty
-			if (MatchesRule("RAI021"))
+			// RAI012: Protected PitItem attributes in ExtendWith / SetProperty / DeleteProperty
+			if (MatchesRule("RAI012"))
 			{
 				if (methodName == "ExtendWith" && args.Count >= 1)
 				{
@@ -365,8 +366,8 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 				}
 			}
 
-			// RAI022: pit.PitDir.Exists() side effect and pit.Reload() hazard
-			if (MatchesRule("RAI022"))
+			// RAI013: pit.PitDir.Exists() side effect and pit.Reload() hazard
+			if (MatchesRule("RAI013"))
 			{
 				if (methodName == "Exists" &&
 					args.Count == 0 &&
@@ -387,8 +388,8 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 				}
 			}
 
-			// RAI024: JObject.Parse / JArray.Parse / JToken.Parse without DateParseHandling.None
-			if (MatchesRule("RAI024") && methodName == "Parse" && IsNewtonsoftJTokenTypeAccess(ma.Expression))
+			// RAI015: JObject.Parse / JArray.Parse / JToken.Parse without DateParseHandling.None
+			if (MatchesRule("RAI015") && methodName == "Parse" && IsNewtonsoftJTokenTypeAccess(ma.Expression))
 			{
 				AddFinding(
 					DiagnosticDescriptors.ProhibitInvalidPitIdAndUnsafeJsonParse,
@@ -397,8 +398,8 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			}
 		}
 
-		// 5. Direct Assignment to Protected PitItem Attributes (RAI021)
-		if (MatchesRule("RAI021"))
+		// 5. Direct Assignment to Protected PitItem Attributes (RAI012)
+		if (MatchesRule("RAI012"))
 		{
 			foreach (var assign in root.DescendantNodes().OfType<AssignmentExpressionSyntax>())
 			{
@@ -435,8 +436,8 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			}
 		}
 
-		// 6. Member Access Conventions (RAI030: RaiImage.WordCase, RaiImage.StringHelper, ImageNamingConvention.Legacy)
-		if (MatchesRule("RAI030"))
+		// 6. Member Access Conventions (RAI016: RaiImage.WordCase, RaiImage.StringHelper, ImageNamingConvention.Legacy)
+		if (MatchesRule("RAI016"))
 		{
 			foreach (var ma in root.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
 			{
@@ -472,7 +473,7 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			}
 		}
 
-		// 7. Block/Method Dataflow Rules: RAI008 (Cloud In-Place), RAI020 (Pit RMW), RAI023 (Pit Disposal)
+		// 7. Block/Method Dataflow Rules: RAI008 (Cloud In-Place), RAI011 (Pit RMW), RAI014 (Pit Disposal)
 		AnalyzeMethodAndClassSemantics(root, MatchesRule, AddFinding);
 
 		// 8. Formatting Rules (RAI010) when running via CLI syntax engine
@@ -489,7 +490,7 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 		Func<string, bool> matchesRule,
 		Action<DiagnosticDescriptor, Location, object[]> addFinding)
 	{
-		// Method-level checks: RAI008, RAI020, RAI023 (local Pit variables)
+		// Method-level checks: RAI008, RAI011, RAI014 (local Pit variables)
 		foreach (var methodBody in root.DescendantNodes().OfType<BlockSyntax>())
 		{
 			// Only analyze outermost method/accessor/local-function blocks for whole-method dataflow
@@ -509,21 +510,21 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 				continue;
 			}
 
-			// RAI020: Full-snapshot Read-Modify-Write on Pit
-			if (matchesRule("RAI020"))
+			// RAI011: Full-snapshot Read-Modify-Write on Pit
+			if (matchesRule("RAI011"))
 			{
 				AnalyzeMethodPitReadModifyWrite(methodBody, addFinding);
 			}
 
-			// RAI023 (Part 1): Local new Pit(...) without using or Dispose()
-			if (matchesRule("RAI023"))
+			// RAI014 (Part 1): Local new Pit(...) without using or Dispose()
+			if (matchesRule("RAI014"))
 			{
 				AnalyzeMethodLocalPitDisposal(methodBody, addFinding);
 			}
 		}
 
-		// RAI023 (Part 2): Class fields holding Pit instances not disposed in IDisposable.Dispose()
-		if (matchesRule("RAI023"))
+		// RAI014 (Part 2): Class fields holding Pit instances not disposed in IDisposable.Dispose()
+		if (matchesRule("RAI014"))
 		{
 			foreach (var classDecl in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
 			{

@@ -52,7 +52,7 @@ To automatically enforce RaiGuard across all current and future projects in a re
 </Project>
 ```
 
-Once saved, every `dotnet build` or IDE compilation across the entire repository enforces all 16 RaiGuard rules (`RAI001`–`RAI009`, `RAI010`, `RAI020`–`RAI024`, and `RAI030`).
+Once saved, every `dotnet build` or IDE compilation across the entire repository enforces all 16 RaiGuard rules (`RAI001`–`RAI016`) across the 6 overlapping rule group sets (`OsLib`, `CloudSync`, `JsonPit`, `CliCommand`, `RaiMedia`, `Formatting`).
 
 ---
 
@@ -77,6 +77,7 @@ Verify installation:
 ```bash
 rail --version
 rail rules
+rail groups
 ```
 
 To update:
@@ -108,8 +109,8 @@ When you open any project referencing `RaiGuard.Analyzer` in VS Code with the of
    - Pressing `Cmd+.` (macOS) or `Ctrl+.` (Windows/Linux) invokes the automated code-fix provider:
      - Automatically rewrites `Path.Combine(root, "sub")` into `new RaiPath(root) / "sub"`.
      - Appends the required trailing `/` to `new RaiPath("...")` string literals (`RAI004`).
-     - Rewrites `pit.PitDir.Exists()` to `pit.JsonFile.Path.Exists()` and `pit.Reload()` to `pit.Load()` (`RAI022`).
-     - Rewrites `RaiImage.WordCase` to `RaiUtils.WordCase` (`RAI030`).
+     - Rewrites `pit.PitDir.Exists()` to `pit.JsonFile.Path.Exists()` and `pit.Reload()` to `pit.Load()` (`RAI013`).
+     - Rewrites `RaiImage.WordCase` to `RaiUtils.WordCase` (`RAI016`).
      - Automatically adds `using OsLib;` or `using RaiUtils;` to the file header if not already present.
 
 ### Visual Studio & JetBrains Rider
@@ -136,9 +137,9 @@ dotnet_diagnostic.RAI004.severity = error
 dotnet_diagnostic.RAI005.severity = error
 
 # Promote JsonPit cloud-replication invariants to hard compiler errors
-dotnet_diagnostic.RAI020.severity = error
-dotnet_diagnostic.RAI021.severity = error
-dotnet_diagnostic.RAI022.severity = error
+dotnet_diagnostic.RAI011.severity = error
+dotnet_diagnostic.RAI012.severity = error
+dotnet_diagnostic.RAI013.severity = error
 
 # Formatting invariant: enforce tab indentation
 indent_style = tab
@@ -163,14 +164,17 @@ dotnet_diagnostic.RAI003.severity = none
 
 While the Roslyn analyzer operates during compilation, the `rail` CLI provides flexible batch inspection and automated codebase migration.
 
-### Auditing Source Code (`rail check`)
+### Auditing Source Code (`rail check` & `rail groups`)
 
-Audit your entire workspace or a target directory:
+Audit your entire workspace, a target directory, a specific rule, or an entire rule group set:
 
 ```bash
 rail check
 rail check src/MyProject/
-rail check --rule RAI020
+rail check --rule RAI011
+rail check --group CloudSync
+rail check --group JsonPit,CliCommand
+rail groups
 rail check --json
 ```
 
@@ -187,15 +191,16 @@ rail fix --dry-run
 # Apply AST refactorings across the repository
 rail fix
 
-# Apply only a specific rule (e.g. tab indentation)
+# Apply only a specific rule or group set (e.g. tab indentation)
 rail fix --rule RAI010
+rail fix --group Formatting
 ```
 
 `rail fix` performs:
 - Path composition rewrites to operator `/` (`RAI003`) and trailing slash fixes on `new RaiPath("...")` (`RAI004`).
 - Directory and file operation rewrites to `RaiPath`, `new TextFile(...)`, and `new RaiFile(...)` (`RAI001`, `RAI002`).
 - Tab indentation and interior consecutive space normalization (`RAI010`).
-- `Pit` side-effect-free existence and load rewrites (`RAI022`) and `RaiUtils.WordCase` canonicalization (`RAI030`).
+- `Pit` side-effect-free existence and load rewrites (`RAI013`) and `RaiUtils.WordCase` canonicalization (`RAI016`).
 - Automatic insertion of `using OsLib;`.
 
 ---
@@ -231,23 +236,23 @@ jobs:
 
 ---
 
-## Summary of Guardrail Rules
+## Summary of Guardrail Rules (`RAI001`–`RAI016`)
 
-| Rule ID | Severity | Title | Remedy |
-|---------|----------|-------|--------|
-| **`RAI001`** | Warning | Prohibit direct usage of `System.IO.Directory` and `DirectoryInfo` | Use `RaiPath` methods (`mkdir()`, `EnumerateDirectories()`, `EnumerateFiles()`, `rmdir()`) |
-| **`RAI002`** | Warning | Prohibit direct usage of `System.IO.File`, `FileInfo`, file streams, and `ZipFile` | Use `RaiFile`, `TextFile`, `JsonFile`, `CsvFile`, or `TmpFile` (`new TextFile(path, content)`, `Read()`, `rm()`, `Zip()`, `Unzip()`) |
-| **`RAI003`** | Warning | Prohibit direct usage of `System.IO.Path` methods, method groups, and separator fields | Use `RaiPath` / `RaiRelPath` operator `/` (`root / "subDir"`), `RaiFile.Name`, or `RaiFile.NameWithoutExtension` |
-| **`RAI004`** | Warning | Require trailing `/` on `new RaiPath("...")` string literals | Terminate directory string literal with `/` (`new RaiPath("/tmp/dir/")`) or compose with operator `/` |
-| **`RAI005`** | Warning | Prohibit string concatenation with `Os.DIR` or `"/"` on `RaiPath` | Compose paths with `dir / "sub"` and construct files via `new RaiFile(dir, name, ext)` or `new TextFile(dir, name, ext)` |
-| **`RAI006`** | Warning | Prohibit bypassing typed `OsLib` `CliCommand` wrappers | Use `PitsCommand`, `IorgCommand`, `RaidCommand`, `AmafuCommand`, or `CliCommand` instead of `Process` or raw `new RaiSystem(...)` |
-| **`RAI007`** | Warning | Prohibit bypassing sacred `Os.Config` via `Environment.*` or `AppDomain` | Read configuration from `Os.Config`, `Os.UserHomeDir`, `Os.TempDir`, or `Os.AppRoot` |
-| **`RAI008`** | Warning | Enforce cloud-storage in-place write invariant (`CR022`) | Never call `rm()` before `Save()`/`cp()`, and never `.mv(tmp)` from temp storage into cloud roots (use `dest.cp(tmp); tmp.rm();`) |
-| **`RAI009`** | Warning | Prevent inverted `OsLib` `cp` / `mv` receiver order | Call `dest.cp(source)` or `dest.mv(source)` where the **destination** `RaiFile` is `this` |
-| **`RAI010`** | Warning | Enforce tab indentation and prohibit consecutive spaces | Indent exclusively with tabs (`\t`); single space between tokens outside string literals (`rail fix --rule RAI010`) |
-| **`RAI020`** | Warning | Prohibit `Pit` full-snapshot read-modify-write (`CR040`) | Construct a sparse delta `var delta = new PitItem(id); delta.ExtendWith(patch); pit.Add(delta);` or mutate live properties on `pit.Get(id)` |
-| **`RAI021`** | Warning | Prohibit direct mutation of protected `PitItem` lifecycle attributes (`Id`, `Modified`, `Deleted`) | Use `new PitItem(id)`, `item.Delete()`, `item.Undel()`, and strip `Id`/`Modified`/`Deleted` from external `ExtendWith` payloads |
-| **`RAI022`** | Warning | Prohibit `pit.PitDir.Exists()` side-effect and `pit.Reload()` overwrite hazard | Use `pit.JsonFile.Path.Exists()` for side-effect-free checks and `pit.Load()` to refresh external seeds |
-| **`RAI023`** | Warning | Require `Pit` disposal (`CR033`) | Wrap `new Pit(...)` in `using var pit = ...` or dispose `_pit` in `IDisposable.Dispose()` |
-| **`RAI024`** | Warning | Prohibit unexpanded `{...}`/`<...>` placeholders in `PitItem` IDs (`CR049`) and unsafe `JObject.Parse` | Validate IDs before `new PitItem(id)` and parse JSON via `JsonFile` or `JsonReader` with `DateParseHandling.None` |
-| **`RAI030`** | Warning | Enforce `RaiUtils.WordCase` (`CR019`), alphanumeric `DiagramBuilder` `baseItemId` (`CR025`), and `ImageNamingConvention.Structured` | Use `RaiUtils.WordCase`, alphanumeric `baseItemId` without `_UCD`/`_CD` suffixes, and `ImageNamingConvention.Structured` |
+| Rule ID | Groups | Severity | Title | Remedy |
+|---------|--------|----------|-------|--------|
+| **`RAI001`** | `OsLib`, `CloudSync` | Warning | Prohibit direct usage of `System.IO.Directory` and `DirectoryInfo` | Use `RaiPath` methods (`mkdir()`, `EnumerateDirectories()`, `EnumerateFiles()`, `rmdir()`) |
+| **`RAI002`** | `OsLib`, `CloudSync` | Warning | Prohibit direct usage of `System.IO.File`, `FileInfo`, file streams, and `ZipFile` | Use `RaiFile`, `TextFile`, `JsonFile`, `CsvFile`, or `TmpFile` (`new TextFile(path, content)`, `Read()`, `rm()`, `Zip()`, `Unzip()`) |
+| **`RAI003`** | `OsLib` | Warning | Prohibit direct usage of `System.IO.Path` methods, method groups, and separator fields | Use `RaiPath` / `RaiRelPath` operator `/` (`root / "subDir"`), `RaiFile.Name`, or `RaiFile.NameWithoutExtension` |
+| **`RAI004`** | `OsLib`, `CloudSync` | Warning | Require trailing `/` on `new RaiPath("...")` string literals | Terminate directory string literal with `/` (`new RaiPath("/tmp/dir/")`) or compose with operator `/` |
+| **`RAI005`** | `OsLib` | Warning | Prohibit string concatenation with `Os.DIR` or `"/"` on `RaiPath` | Compose paths with `dir / "sub"` and construct files via `new RaiFile(dir, name, ext)` or `new TextFile(dir, name, ext)` |
+| **`RAI006`** | `OsLib`, `JsonPit`, `CliCommand`, `RaiMedia` | Warning | Prohibit bypassing typed `OsLib` `CliCommand` wrappers | Use `PitsCommand`, `IorgCommand`, `RaidCommand`, `AmafuCommand`, or `CliCommand` instead of `Process` or raw `new RaiSystem(...)` |
+| **`RAI007`** | `OsLib`, `CloudSync` | Warning | Prohibit bypassing sacred `Os.Config` via `Environment.*` or `AppDomain` | Read configuration from `Os.Config`, `Os.UserHomeDir`, `Os.TempDir`, or `Os.AppRoot` |
+| **`RAI008`** | `OsLib`, `CloudSync`, `JsonPit`, `RaiMedia` | Warning | Enforce cloud-storage in-place write invariant (`CR022`) | Never call `rm()` before `Save()`/`cp()`, and never `.mv(tmp)` from temp storage into cloud roots (use `dest.cp(tmp); tmp.rm();`) |
+| **`RAI009`** | `OsLib` | Warning | Prevent inverted `OsLib` `cp` / `mv` receiver order | Call `dest.cp(source)` or `dest.mv(source)` where the **destination** `RaiFile` is `this` |
+| **`RAI010`** | `Formatting` | Warning | Enforce tab indentation and prohibit consecutive spaces | Indent exclusively with tabs (`\t`); single space between tokens outside string literals (`rail fix --rule RAI010`) |
+| **`RAI011`** | `JsonPit`, `CloudSync` | Warning | Prohibit `Pit` full-snapshot read-modify-write (`CR040`) | Construct a sparse delta `var delta = new PitItem(id); delta.ExtendWith(patch); pit.Add(delta);` or mutate live properties on `pit.Get(id)` |
+| **`RAI012`** | `JsonPit` | Warning | Prohibit direct mutation of protected `PitItem` lifecycle attributes (`Id`, `Modified`, `Deleted`) | Use `new PitItem(id)`, `item.Delete()`, `item.Undel()`, and strip `Id`/`Modified`/`Deleted` from external `ExtendWith` payloads |
+| **`RAI013`** | `JsonPit`, `CloudSync`, `CliCommand` | Warning | Prohibit `pit.PitDir.Exists()` side-effect and `pit.Reload()` overwrite hazard | Use `pit.JsonFile.Path.Exists()` for side-effect-free checks and `pit.Load()` to refresh external seeds |
+| **`RAI014`** | `JsonPit`, `CloudSync` | Warning | Require `Pit` disposal (`CR033`) | Wrap `new Pit(...)` in `using var pit = ...` or dispose `_pit` in `IDisposable.Dispose()` |
+| **`RAI015`** | `JsonPit` | Warning | Prohibit unexpanded `{...}`/`<...>` placeholders in `PitItem` IDs (`CR049`) and unsafe `JObject.Parse` | Validate IDs before `new PitItem(id)` and parse JSON via `JsonFile` or `JsonReader` with `DateParseHandling.None` |
+| **`RAI016`** | `RaiMedia` | Warning | Enforce `RaiUtils.WordCase` (`CR019`), alphanumeric `DiagramBuilder` `baseItemId` (`CR025`), and `ImageNamingConvention.Structured` | Use `RaiUtils.WordCase`, alphanumeric `baseItemId` without `_UCD`/`_CD` suffixes, and `ImageNamingConvention.Structured` |

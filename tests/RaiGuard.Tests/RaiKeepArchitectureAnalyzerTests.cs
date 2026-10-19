@@ -303,7 +303,7 @@ namespace TestNamespace
 	}
 
 	[Fact]
-	public async Task RAI020_WhenPitReadModifyWrite_EmitsDiagnostic()
+	public async Task RAI011_WhenPitReadModifyWrite_EmitsDiagnostic()
 	{
 		var testCode = @"
 namespace TestNamespace
@@ -336,7 +336,7 @@ namespace TestNamespace
 }";
 
 		var expected = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI020")
+			.Diagnostic("RAI011")
 			.WithLocation(0)
 			.WithArguments("existing");
 
@@ -344,7 +344,7 @@ namespace TestNamespace
 	}
 
 	[Fact]
-	public async Task RAI021_WhenProtectedAttributeInExtendWith_EmitsDiagnostic()
+	public async Task RAI012_WhenProtectedAttributeInExtendWith_EmitsDiagnostic()
 	{
 		var testCode = @"
 using System.Collections.Generic;
@@ -370,7 +370,7 @@ namespace TestNamespace
 }";
 
 		var expected = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI021")
+			.Diagnostic("RAI012")
 			.WithLocation(0)
 			.WithArguments("Id");
 
@@ -378,7 +378,7 @@ namespace TestNamespace
 	}
 
 	[Fact]
-	public async Task RAI022_WhenPitDirExistsOrPitReload_EmitsDiagnostic()
+	public async Task RAI013_WhenPitDirExistsOrPitReload_EmitsDiagnostic()
 	{
 		var testCode = @"
 namespace TestNamespace
@@ -403,12 +403,12 @@ namespace TestNamespace
 }";
 
 		var expected0 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI022")
+			.Diagnostic("RAI013")
 			.WithLocation(0)
 			.WithArguments("'userPit.PitDir.Exists' triggers a disk 'mkdir()' side effect via the 'PitDir' getter; use 'userPit.JsonFile.Path.Exists()' or 'userPit.JsonFile.Exists()' instead");
 
 		var expected1 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI022")
+			.Diagnostic("RAI013")
 			.WithLocation(1)
 			.WithArguments("'userPit.Reload()' invokes 'Save()' on dirty/merge branches and can overwrite external CLI seeds on disk; use 'userPit.Load()' for pure disk-to-memory reload");
 
@@ -416,7 +416,7 @@ namespace TestNamespace
 	}
 
 	[Fact]
-	public async Task RAI023_WhenPitNotDisposed_EmitsDiagnostic()
+	public async Task RAI014_WhenPitNotDisposed_EmitsDiagnostic()
 	{
 		var testCode = @"
 using System;
@@ -451,12 +451,12 @@ namespace TestNamespace
 }";
 
 		var expected0 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI023")
+			.Diagnostic("RAI014")
 			.WithLocation(0)
 			.WithArguments("_personPit");
 
 		var expected1 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI023")
+			.Diagnostic("RAI014")
 			.WithLocation(1)
 			.WithArguments("localPit");
 
@@ -464,7 +464,7 @@ namespace TestNamespace
 	}
 
 	[Fact]
-	public async Task RAI024_WhenTemplatePitItemIdOrJObjectParse_EmitsDiagnostic()
+	public async Task RAI015_WhenTemplatePitItemIdOrJObjectParse_EmitsDiagnostic()
 	{
 		var testCode = @"
 namespace TestNamespace
@@ -483,12 +483,12 @@ namespace TestNamespace
 }";
 
 		var expected0 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI024")
+			.Diagnostic("RAI015")
 			.WithLocation(0)
 			.WithArguments("Invalid live PitItem ID '{UnexpandedId}' violates CR049 (PitItem.ValidateLiveId rejects empty/whitespace IDs and unexpanded '{' or '<' template placeholders)");
 
 		var expected1 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI024")
+			.Diagnostic("RAI015")
 			.WithLocation(1)
 			.WithArguments("'JObject.Parse(...)' uses default 'DateParseHandling.DateTime' which corrupts ISO-8601 strings in local timezones; parse with 'JsonTextReader { DateParseHandling = DateParseHandling.None }' or 'PitJson' / 'RaidJson5'");
 
@@ -496,7 +496,7 @@ namespace TestNamespace
 	}
 
 	[Fact]
-	public async Task RAI030_WhenDiagramBuilderBaseIdHasUnderscoreOrLegacyNaming_EmitsDiagnostic()
+	public async Task RAI016_WhenDiagramBuilderBaseIdHasUnderscoreOrLegacyNaming_EmitsDiagnostic()
 	{
 		var testCode = @"
 namespace TestNamespace
@@ -518,12 +518,12 @@ namespace TestNamespace
 }";
 
 		var expected0 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI030")
+			.Diagnostic("RAI016")
 			.WithLocation(0)
 			.WithArguments("DiagramBuilder baseItemId 'Checkout_UCD' must be alphanumeric without '_' or pre-appended archetype suffixes (CR025); the builder appends the archetype suffix automatically");
 
 		var expected1 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI030")
+			.Diagnostic("RAI016")
 			.WithLocation(1)
 			.WithArguments("'ImageNamingConvention.Legacy' is deprecated for new multi-image and diagram assets; prefer 'ImageNamingConvention.Structured'");
 

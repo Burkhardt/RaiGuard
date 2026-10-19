@@ -47,29 +47,36 @@ public static class Messages
 	public static bool Json { get; set; } = false;
 	public static string? TargetPath { get; set; }
 	public static string? TargetRule { get; set; }
+	public static string? TargetGroup { get; set; }
 
 	public static string[] Help =>
 	[
-		$"Commands:\t{Icons.Info}\tcheck, fix, rules",
-		$"  rail check [<path>] [--rule <id>] [--json]",
-		$"  rail fix [<path>] [--rule <id>] [--dry-run]",
-		$"  rail rules [--json]",
+		$"Commands:\t{Icons.Info}\tcheck, fix, rules, groups",
+		$"  rail check [<path>] [--rule <id>] [--group <name>] [--json]",
+		$"  rail fix [<path>] [--rule <id>] [--group <name>] [--dry-run]",
+		$"  rail rules [--rule <id>] [--group <name>] [--groups] [--json]",
+		$"  rail groups [--group <name>] [--json]",
 		$"-h, --help\t{Icons.Help}\tprint out all options",
 		$"-v, --version\t{Icons.Info}\tprint version info",
 		$"-n, --nologo\t{(Banner ? Icons.Banner : Icons.NoBanner)}\tdo not display the banner",
 		$"-b, --debug\t{(Debug ? Icons.Bug : Icons.Runner)}\tenable debug output",
 		$"-p, --path\t{Icons.Folder}\t{PathDescription()}",
 		$"--rule\t\t{Icons.Shield}\t{RuleDescription()}",
+		$"-g, --group\t{Icons.Shield}\t{GroupDescription()}",
+		$"--groups\t{Icons.Shield}\tlist all rule groups (sets) with their member RAIxxx rules",
 		$"--json\t\t{(Json ? Icons.Success : Icons.NotAvailable)}\toutput diagnostics in JSON format",
 		$"--dry-run\t{Icons.Info}\tsimulate code fixes without modifying source files on disk",
-		$"{Icons.Info} Rules\t{Icons.Shield}\tRAI001..RAI009 (OsLib/Cloud), RAI010 (Formatting), RAI020..RAI024 (JsonPit), RAI030 (Diagram/Utils)",
+		$"{Icons.Info} Rules\t{Icons.Shield}\tRAI001..RAI016 across sets: OsLib, CloudSync, JsonPit, CliCommand, RaiMedia, Formatting",
 	];
 
 	private static string PathDescription() =>
 		!string.IsNullOrWhiteSpace(TargetPath) ? TargetPath : "target file or directory (defaults to current directory)";
 
 	private static string RuleDescription() =>
-		!string.IsNullOrWhiteSpace(TargetRule) ? TargetRule : "filter by rule ID (e.g. RAI001, RAI020)";
+		!string.IsNullOrWhiteSpace(TargetRule) ? TargetRule : "filter by rule ID (e.g. RAI001, RAI011)";
+
+	private static string GroupDescription() =>
+		!string.IsNullOrWhiteSpace(TargetGroup) ? TargetGroup : "filter by rule group set (OsLib, CloudSync, JsonPit, CliCommand, RaiMedia, Formatting)";
 
 	public static void WriteHighlighted(string text, ConsoleColor foreground = ConsoleColor.Black, ConsoleColor? background = null)
 	{
@@ -139,8 +146,8 @@ public static class Program
 {
 	private const string CliSubscriber = "rail";
 	private const string BannerTitle = "rail - RaiGuard Roslyn Guardrails & Analyzer for the RAIkeep Framework";
-	private static readonly string[] Commands = ["check", "fix", "rules"];
-	private static readonly string[] SwitchesWithValues = ["-p", "--path", "--rule"];
+	private static readonly string[] Commands = ["check", "fix", "rules", "groups"];
+	private static readonly string[] SwitchesWithValues = ["-p", "--path", "--rule", "-g", "--group"];
 
 	public static int Main(string[] args)
 	{
@@ -174,23 +181,31 @@ public static class Program
 		Messages.Banner = !HasOption(args, "-n", "-l", "--nologo");
 		Messages.Json = HasOption(args, "--json");
 		bool dryRun = HasOption(args, "--dry-run");
+		bool listGroups = HasOption(args, "--groups");
 
-		var pathParam = ParamValue(args, "-p", "--path") ?? PositionalArg(args);
+		var pathParam = ParamValue(args, "-p", "--path") ?? (command == "groups" ? null : PositionalArg(args));
 		var ruleParam = ParamValue(args, "--rule");
+		var groupParam = ParamValue(args, "-g", "--group") ?? (command == "groups" ? PositionalArg(args) : null);
 
 		Messages.TargetPath = pathParam;
 		Messages.TargetRule = ruleParam;
+		Messages.TargetGroup = groupParam;
 
 		if (Messages.Banner && !Messages.Json)
 		{
 			Messages.WriteBanner(BannerTitle);
 		}
 
+		if (listGroups || command == "groups")
+		{
+			return RunGroups(groupParam, Messages.Json);
+		}
+
 		return command switch
 		{
-			"check" => RunCheck(pathParam, ruleParam, Messages.Json),
-			"fix" => RunFix(pathParam, ruleParam, dryRun, Messages.Json),
-			"rules" => RunRules(Messages.Json),
+			"check" => RunCheck(pathParam, ruleParam, groupParam, Messages.Json),
+			"fix" => RunFix(pathParam, ruleParam, groupParam, dryRun, Messages.Json),
+			"rules" => RunRules(ruleParam, groupParam, Messages.Json),
 			_ => RunUnknownCommand(command)
 		};
 	}
@@ -200,25 +215,35 @@ public static class Program
 		Messages.Debug = HasOption(args, "-b", "-d", "--debug");
 		Messages.Banner = !HasOption(args, "-n", "-l", "--nologo");
 		Messages.Json = HasOption(args, "--json");
+		bool listGroups = HasOption(args, "--groups");
 
 		var pathParam = ParamValue(args, "-p", "--path") ?? PositionalArg(args);
 		var ruleParam = ParamValue(args, "--rule");
+		var groupParam = ParamValue(args, "-g", "--group");
 
 		if (Messages.Banner && !Messages.Json)
 		{
 			Messages.WriteBanner(BannerTitle);
 		}
 
-		return RunCheck(pathParam, ruleParam, Messages.Json);
+		if (listGroups)
+		{
+			return RunGroups(groupParam, Messages.Json);
+		}
+
+		return RunCheck(pathParam, ruleParam, groupParam, Messages.Json);
 	}
 
-	private static int RunRules(bool json)
+	private static int RunRules(string? ruleFilter, string? groupFilter, bool json)
 	{
+		var filterSet = DiagnosticDescriptors.ResolveFilterSet(ruleFilter, groupFilter);
 		var rules = DiagnosticDescriptors.Catalog
+			.Where(entry => filterSet == null || filterSet.Contains(entry.Id))
 			.Select(entry => new
 			{
 				Id = entry.Id,
 				Title = entry.Descriptor.Title.ToString(),
+				Groups = entry.Groups.ToArray(),
 				Category = entry.Descriptor.Category,
 				Severity = entry.Descriptor.DefaultSeverity.ToString(),
 				Description = entry.Descriptor.Description.ToString(),
@@ -236,6 +261,7 @@ public static class Program
 		foreach (var rule in rules)
 		{
 			Messages.WriteInfo($"{Icons.Shield} [{rule.Id}] {rule.Title}");
+			Console.WriteLine($"  Groups:      {string.Join(", ", rule.Groups)}");
 			Console.WriteLine($"  Category:    {rule.Category}");
 			Console.WriteLine($"  Severity:    {rule.Severity}");
 			Console.WriteLine($"  Description: {rule.Description}");
@@ -246,7 +272,57 @@ public static class Program
 		return 0;
 	}
 
-	private static int RunCheck(string? targetPath, string? ruleFilter, bool json)
+	private static int RunGroups(string? groupFilter, bool json)
+	{
+		var requestedGroups = string.IsNullOrWhiteSpace(groupFilter)
+			? null
+			: new HashSet<string>(
+				groupFilter.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()),
+				StringComparer.OrdinalIgnoreCase);
+
+		var catalogById = DiagnosticDescriptors.Catalog.ToDictionary(e => e.Id, StringComparer.OrdinalIgnoreCase);
+
+		var groups = DiagnosticDescriptors.Groups
+			.Where(g => requestedGroups == null || requestedGroups.Contains(g.Name))
+			.Select(g => new
+			{
+				Group = g.Name,
+				Description = g.Description,
+				RuleIds = g.RuleIds.ToArray(),
+				Rules = g.RuleIds
+					.Where(id => catalogById.ContainsKey(id))
+					.Select(id => new
+					{
+						Id = id,
+						Title = catalogById[id].Descriptor.Title.ToString(),
+						Severity = catalogById[id].Descriptor.DefaultSeverity.ToString()
+					})
+					.ToArray()
+			})
+			.ToArray();
+
+		if (json)
+		{
+			var jsonOutput = System.Text.Json.JsonSerializer.Serialize(groups, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+			Console.WriteLine(jsonOutput);
+			return 0;
+		}
+
+		foreach (var g in groups)
+		{
+			Messages.WriteInfo($"{Icons.Shield} Group '{g.Group}' ({{ {string.Join(", ", g.RuleIds)} }})");
+			Console.WriteLine($"  Description: {g.Description}");
+			foreach (var r in g.Rules)
+			{
+				Console.WriteLine($"    - [{r.Id}] {r.Title}");
+			}
+			Console.WriteLine();
+		}
+
+		return 0;
+	}
+
+	private static int RunCheck(string? targetPath, string? ruleFilter, string? groupFilter, bool json)
 	{
 		var files = ResolveSourceFiles(targetPath);
 		if (files.Count == 0)
@@ -266,7 +342,7 @@ public static class Program
 
 		foreach (var filePath in files)
 		{
-			var fileViolations = AnalyzeFile(filePath, ruleFilter);
+			var fileViolations = AnalyzeFile(filePath, ruleFilter, groupFilter);
 			violations.AddRange(fileViolations);
 		}
 
@@ -293,7 +369,7 @@ public static class Program
 		return 1;
 	}
 
-	private static int RunFix(string? targetPath, string? ruleFilter, bool dryRun, bool json)
+	private static int RunFix(string? targetPath, string? ruleFilter, string? groupFilter, bool dryRun, bool json)
 	{
 		var files = ResolveSourceFiles(targetPath);
 		if (files.Count == 0)
@@ -302,14 +378,15 @@ public static class Program
 			return 0;
 		}
 
+		var filterSet = DiagnosticDescriptors.ResolveFilterSet(ruleFilter, groupFilter);
 		int totalFixes = 0;
 
 		foreach (var filePath in files)
 		{
 			var code = File.ReadAllText(filePath);
 
-			// Optional explicit RAI010 tab indentation fix when --rule RAI010 is passed
-			if (ruleFilter != null && ruleFilter.Equals("RAI010", StringComparison.OrdinalIgnoreCase))
+			// Optional explicit RAI010 tab indentation fix when --rule RAI010 or --group Formatting is passed
+			if (filterSet != null && filterSet.Count == 1 && filterSet.Contains("RAI010"))
 			{
 				var (tabFixedCode, tabFixes) = NormalizeIndentationToTabs(code);
 				if (tabFixes > 0)
@@ -331,12 +408,12 @@ public static class Program
 			var tree = CSharpSyntaxTree.ParseText(code);
 			var root = tree.GetRoot();
 
-			bool allowRai001 = ruleFilter == null || ruleFilter.Equals("RAI001", StringComparison.OrdinalIgnoreCase);
-			bool allowRai002 = ruleFilter == null || ruleFilter.Equals("RAI002", StringComparison.OrdinalIgnoreCase);
-			bool allowRai003 = ruleFilter == null || ruleFilter.Equals("RAI003", StringComparison.OrdinalIgnoreCase);
-			bool allowRai004 = ruleFilter == null || ruleFilter.Equals("RAI004", StringComparison.OrdinalIgnoreCase);
-			bool allowRai022 = ruleFilter == null || ruleFilter.Equals("RAI022", StringComparison.OrdinalIgnoreCase);
-			bool allowRai030 = ruleFilter == null || ruleFilter.Equals("RAI030", StringComparison.OrdinalIgnoreCase);
+			bool allowRai001 = filterSet == null || filterSet.Contains("RAI001");
+			bool allowRai002 = filterSet == null || filterSet.Contains("RAI002");
+			bool allowRai003 = filterSet == null || filterSet.Contains("RAI003");
+			bool allowRai004 = filterSet == null || filterSet.Contains("RAI004");
+			bool allowRai013 = filterSet == null || filterSet.Contains("RAI013");
+			bool allowRai016 = filterSet == null || filterSet.Contains("RAI016");
 
 			var rewrites = root.DescendantNodes()
 				.Where(node =>
@@ -371,7 +448,7 @@ public static class Program
 							return method == "Combine" && inv.ArgumentList.Arguments.Count >= 2;
 						}
 
-						if (allowRai022 &&
+						if (allowRai013 &&
 							ma.Name.Identifier.Text == "Exists" &&
 							inv.ArgumentList.Arguments.Count == 0 &&
 							ma.Expression is MemberAccessExpressionSyntax innerMa &&
@@ -399,7 +476,7 @@ public static class Program
 						}
 					}
 
-					if (allowRai030 && node is MemberAccessExpressionSyntax member &&
+					if (allowRai016 && node is MemberAccessExpressionSyntax member &&
 						member.ToString() == "ImageNamingConvention.Legacy")
 					{
 						return true;
@@ -791,11 +868,11 @@ public static class Program
 		}
 	}
 
-	private static List<DiagnosticRecord> AnalyzeFile(string filePath, string? ruleFilter)
+	private static List<DiagnosticRecord> AnalyzeFile(string filePath, string? ruleFilter, string? groupFilter = null)
 	{
 		var code = File.ReadAllText(filePath);
 		var tree = CSharpSyntaxTree.ParseText(code, path: filePath);
-		var findings = RaiKeepArchitectureAnalyzer.AnalyzeSyntaxRoot(tree, ruleFilter, includeSystemIoAndFormatting: true);
+		var findings = RaiKeepArchitectureAnalyzer.AnalyzeSyntaxRoot(tree, ruleFilter, includeSystemIoAndFormatting: true, groupFilter: groupFilter);
 
 		return findings
 			.Select(f => new DiagnosticRecord(

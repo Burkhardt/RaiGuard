@@ -15,8 +15,8 @@ public sealed class RaiKeepArchitectureCodeFix : CodeFixProvider
 {
 	public override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create(
 		"RAI004",
-		"RAI022",
-		"RAI030"
+		"RAI013",
+		"RAI016"
 	);
 
 	public override FixAllProvider GetFixAllProvider() => WellKnownFixAllProviders.BatchFixer;
@@ -55,7 +55,7 @@ public sealed class RaiKeepArchitectureCodeFix : CodeFixProvider
 					diagnostic);
 			}
 		}
-		else if (diagnostic.Id == "RAI022")
+		else if (diagnostic.Id == "RAI013")
 		{
 			var invocation = node.FirstAncestorOrSelf<InvocationExpressionSyntax>();
 			if (invocation?.Expression is MemberAccessExpressionSyntax outerMa &&
@@ -88,7 +88,7 @@ public sealed class RaiKeepArchitectureCodeFix : CodeFixProvider
 					diagnostic);
 			}
 		}
-		else if (diagnostic.Id == "RAI030")
+		else if (diagnostic.Id == "RAI016")
 		{
 			var memberAccess = node.FirstAncestorOrSelf<MemberAccessExpressionSyntax>();
 			if (memberAccess != null && memberAccess.ToString() == "ImageNamingConvention.Legacy")

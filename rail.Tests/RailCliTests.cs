@@ -479,12 +479,62 @@ public class Sample
             foreach (var ruleId in new[]
             {
                 "RAI001", "RAI002", "RAI003", "RAI004", "RAI005", "RAI006",
-                "RAI007", "RAI008", "RAI009", "RAI010", "RAI020", "RAI021",
-                "RAI022", "RAI023", "RAI024", "RAI030"
+                "RAI007", "RAI008", "RAI009", "RAI010", "RAI011", "RAI012",
+                "RAI013", "RAI014", "RAI015", "RAI016"
             })
             {
                 Assert.Contains(ruleId, output);
             }
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    [Fact]
+    public void Main_GroupsCommand_ListsOverlappingGroupSets()
+    {
+        var originalOut = Console.Out;
+        using var sw = new StringWriter();
+        Console.SetOut(sw);
+
+        try
+        {
+            var exitCode = Program.Main(["groups", "-n"]);
+            Assert.Equal(0, exitCode);
+            var output = sw.ToString();
+            Assert.Contains("Group 'OsLib'", output);
+            Assert.Contains("Group 'CloudSync'", output);
+            Assert.Contains("Group 'JsonPit'", output);
+            Assert.Contains("Group 'CliCommand'", output);
+            Assert.Contains("Group 'RaiMedia'", output);
+            Assert.Contains("Group 'Formatting'", output);
+            // Non-consecutive set membership in CloudSync:
+            Assert.Contains("RAI001, RAI002, RAI004, RAI007, RAI008, RAI011, RAI013, RAI014", output);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    [Fact]
+    public void Main_RulesCommand_WithGroupFilter_FiltersBySetMembership()
+    {
+        var originalOut = Console.Out;
+        using var sw = new StringWriter();
+        Console.SetOut(sw);
+
+        try
+        {
+            var exitCode = Program.Main(["rules", "--group", "CliCommand", "-n"]);
+            Assert.Equal(0, exitCode);
+            var output = sw.ToString();
+            Assert.Contains("RAI006", output);
+            Assert.Contains("RAI013", output);
+            Assert.DoesNotContain("[RAI001]", output);
+            Assert.DoesNotContain("[RAI010]", output);
         }
         finally
         {
@@ -540,12 +590,12 @@ public class Sample
             Assert.Contains("RAI006", output);
             Assert.Contains("RAI007", output);
             Assert.Contains("RAI009", output);
-            Assert.Contains("RAI020", output);
-            Assert.Contains("RAI021", output);
-            Assert.Contains("RAI022", output);
-            Assert.Contains("RAI023", output);
-            Assert.Contains("RAI024", output);
-            Assert.Contains("RAI030", output);
+            Assert.Contains("RAI011", output);
+            Assert.Contains("RAI012", output);
+            Assert.Contains("RAI013", output);
+            Assert.Contains("RAI014", output);
+            Assert.Contains("RAI015", output);
+            Assert.Contains("RAI016", output);
         }
         finally
         {
