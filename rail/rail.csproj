@@ -3,7 +3,7 @@
 	<PropertyGroup>
 		<Title>RaiGuard</Title>
 		<Description>Official .NET Global Tool CLI for RaiGuard opinionated Roslyn guardrails. Audits, verifies, and automatically refactors framework physics violations across solutions.</Description>
-		<Version>4.5.12</Version>
+		<Version>4.5.13</Version>
 		<AssemblyVersion>$(Version)</AssemblyVersion>
 		<FileVersion>$(Version)</FileVersion>
 		<InformationalVersion>$(Version)</InformationalVersion>
@@ -41,11 +41,11 @@
 		<UseLocalRAIkeepSources Condition="'$(UseLocalRAIkeepSources)' == '' and '$(JsonPitProjectPath)' != '' and '$(OsLibProjectPath)' != '' and '$(RaiUtilsProjectPath)' != '' and '$(RaiImageProjectPath)' != '' and '$(RaiDiagramProjectPath)' != ''">true</UseLocalRAIkeepSources>
 		<UseLocalRAIkeepSources Condition="'$(UseLocalRAIkeepSources)' == ''">false</UseLocalRAIkeepSources>
 
-		<JsonPitPackageVersion Condition="'$(JsonPitPackageVersion)' == ''">4.5.12</JsonPitPackageVersion>
-		<OsLibPackageVersion Condition="'$(OsLibPackageVersion)' == ''">4.5.12</OsLibPackageVersion>
-		<RaiUtilsPackageVersion Condition="'$(RaiUtilsPackageVersion)' == ''">4.5.12</RaiUtilsPackageVersion>
-		<RaiImagePackageVersion Condition="'$(RaiImagePackageVersion)' == ''">4.5.12</RaiImagePackageVersion>
-		<RaiDiagramPackageVersion Condition="'$(RaiDiagramPackageVersion)' == ''">4.5.12</RaiDiagramPackageVersion>
+		<JsonPitPackageVersion Condition="'$(JsonPitPackageVersion)' == ''">4.5.13</JsonPitPackageVersion>
+		<OsLibPackageVersion Condition="'$(OsLibPackageVersion)' == ''">4.5.13</OsLibPackageVersion>
+		<RaiUtilsPackageVersion Condition="'$(RaiUtilsPackageVersion)' == ''">4.5.13</RaiUtilsPackageVersion>
+		<RaiImagePackageVersion Condition="'$(RaiImagePackageVersion)' == ''">4.5.13</RaiImagePackageVersion>
+		<RaiDiagramPackageVersion Condition="'$(RaiDiagramPackageVersion)' == ''">4.5.13</RaiDiagramPackageVersion>
 	</PropertyGroup>
 
 	<ItemGroup>
