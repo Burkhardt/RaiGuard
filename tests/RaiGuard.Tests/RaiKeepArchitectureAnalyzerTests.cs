@@ -344,6 +344,96 @@ namespace TestNamespace
 	}
 
 	[Fact]
+	public async Task RAI011_WhenFreshlyGeneratedCollectionOrTargetTypedNew_DoesNotEmitDiagnostic()
+	{
+		var testCode = @"
+using System.Collections.Generic;
+
+namespace TestNamespace
+{
+	public class PitItem
+	{
+		public PitItem(string id) { }
+		public void ExtendWith(object patch) { }
+	}
+	public class Pit
+	{
+		public void Add(PitItem item) { }
+	}
+
+	public class UseCaseInstantiator
+	{
+		public void Spawn(Pit activityPit, object patch)
+		{
+			var generated = new List<PitItem> { new PitItem(""act-1"") };
+			foreach (var item in generated)
+			{
+				item.ExtendWith(patch);
+			}
+			foreach (var item in generated)
+			{
+				activityPit.Add(item);
+			}
+
+			PitItem marker = new(""baseline"");
+			marker.ExtendWith(patch);
+			activityPit.Add(marker);
+		}
+	}
+}";
+
+		await CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode);
+	}
+
+	[Fact]
+	public async Task RAI011_WhenParameterOrCoalescedLookupReadModifyWrite_EmitsDiagnostic()
+	{
+		var testCode = @"
+using System;
+
+namespace TestNamespace
+{
+	public class PitItem
+	{
+		public PitItem(string id) { }
+		public void ExtendWith(object patch) { }
+	}
+	public class Pit
+	{
+		public PitItem? this[string id] => new PitItem(id);
+		public void Add(PitItem item) { }
+	}
+
+	public class Instantiator
+	{
+		public void Graft(Pit activityPit, PitItem existingActivity, object patch)
+		{
+			existingActivity.ExtendWith(patch);
+			{|#0:activityPit.Add(existingActivity)|};
+		}
+
+		public void BindFiller(Pit objectPit, string objectId, object patch)
+		{
+			var obj = objectPit[objectId] ?? throw new InvalidOperationException();
+			{|#1:objectPit.Add(obj)|};
+		}
+	}
+}";
+
+		var expected0 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
+			.Diagnostic("RAI011")
+			.WithLocation(0)
+			.WithArguments("existingActivity");
+
+		var expected1 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
+			.Diagnostic("RAI011")
+			.WithLocation(1)
+			.WithArguments("obj");
+
+		await CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode, expected0, expected1);
+	}
+
+	[Fact]
 	public async Task RAI012_WhenProtectedAttributeInExtendWith_EmitsDiagnostic()
 	{
 		var testCode = @"

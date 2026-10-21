@@ -617,7 +617,19 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 	{
 		var freshPitItems = new HashSet<string>(StringComparer.Ordinal);
 		var projectedPitItems = new HashSet<string>(StringComparer.Ordinal);
+		var parameterPitItems = new HashSet<string>(StringComparer.Ordinal);
 		var extendedVariables = new HashSet<string>(StringComparer.Ordinal);
+
+		if (methodBody.Parent is BaseMethodDeclarationSyntax baseMethod)
+		{
+			foreach (var param in baseMethod.ParameterList.Parameters)
+			{
+				if (param.Type != null && GetSimpleTypeName(param.Type) == "PitItem")
+				{
+					parameterPitItems.Add(param.Identifier.Text);
+				}
+			}
+		}
 
 		foreach (var decl in methodBody.DescendantNodes().OfType<VariableDeclaratorSyntax>())
 		{
@@ -628,11 +640,14 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 				continue;
 			}
 
-			if (initExpr is ObjectCreationExpressionSyntax oc && GetSimpleTypeName(oc.Type) == "PitItem")
+			var declaredType = (decl.Parent as VariableDeclarationSyntax)?.Type;
+			if (IsFreshPitItemCreation(initExpr, declaredType) ||
+				(initExpr is IdentifierNameSyntax srcFresh && freshPitItems.Contains(srcFresh.Identifier.Text)))
 			{
 				freshPitItems.Add(varName);
 			}
-			else if (IsProjectedPitLookup(initExpr))
+			else if (IsProjectedPitLookup(initExpr) ||
+				(initExpr is IdentifierNameSyntax srcProj && projectedPitItems.Contains(srcProj.Identifier.Text)))
 			{
 				projectedPitItems.Add(varName);
 			}
@@ -643,12 +658,14 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			if (assign.Left is IdentifierNameSyntax id)
 			{
 				var varName = id.Identifier.Text;
-				if (assign.Right is ObjectCreationExpressionSyntax oc && GetSimpleTypeName(oc.Type) == "PitItem")
+				if (IsFreshPitItemCreation(assign.Right, declaredType: null) ||
+					(assign.Right is IdentifierNameSyntax srcFresh && freshPitItems.Contains(srcFresh.Identifier.Text)))
 				{
 					freshPitItems.Add(varName);
 					projectedPitItems.Remove(varName);
 				}
-				else if (IsProjectedPitLookup(assign.Right))
+				else if (IsProjectedPitLookup(assign.Right) ||
+					(assign.Right is IdentifierNameSyntax srcProj && projectedPitItems.Contains(srcProj.Identifier.Text)))
 				{
 					projectedPitItems.Add(varName);
 					freshPitItems.Remove(varName);
@@ -678,14 +695,15 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			}
 
 			var method = ma.Name.Identifier.Text;
-			if (method == "Add" && inv.ArgumentList.Arguments.Count == 1)
+			if (method == "Add" && inv.ArgumentList.Arguments.Count == 1 && IsLikelyPitReceiver(ma.Expression))
 			{
 				var argExpr = inv.ArgumentList.Arguments[0].Expression;
 				if (argExpr is IdentifierNameSyntax argId)
 				{
 					var varName = argId.Identifier.Text;
 					if (!freshPitItems.Contains(varName) &&
-						(extendedVariables.Contains(varName) || projectedPitItems.Contains(varName)))
+						(projectedPitItems.Contains(varName) ||
+							(parameterPitItems.Contains(varName) && extendedVariables.Contains(varName))))
 					{
 						addFinding(
 							DiagnosticDescriptors.ProhibitPitReadModifyWrite,
@@ -1274,8 +1292,55 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			name.Equals("entry", StringComparison.OrdinalIgnoreCase);
 	}
 
+	private static bool IsFreshPitItemCreation(ExpressionSyntax expr, TypeSyntax? declaredType)
+	{
+		if (expr is ObjectCreationExpressionSyntax oc && GetSimpleTypeName(oc.Type) == "PitItem")
+		{
+			return true;
+		}
+
+		if (expr is ImplicitObjectCreationExpressionSyntax &&
+			declaredType != null &&
+			GetSimpleTypeName(declaredType) == "PitItem")
+		{
+			return true;
+		}
+
+		if (expr is InvocationExpressionSyntax inv &&
+			inv.Expression is MemberAccessExpressionSyntax ma &&
+			ma.Name.Identifier.Text == "Item" &&
+			ExtractLastIdentifier(ma.Expression) == "SparsePayload")
+		{
+			return true;
+		}
+
+		return false;
+	}
+
 	private static bool IsProjectedPitLookup(ExpressionSyntax expr)
 	{
+		if (expr is PostfixUnaryExpressionSyntax postfix &&
+			postfix.IsKind(SyntaxKind.SuppressNullableWarningExpression))
+		{
+			return IsProjectedPitLookup(postfix.Operand);
+		}
+
+		if (expr is ParenthesizedExpressionSyntax paren)
+		{
+			return IsProjectedPitLookup(paren.Expression);
+		}
+
+		if (expr is BinaryExpressionSyntax bin &&
+			bin.IsKind(SyntaxKind.CoalesceExpression))
+		{
+			return IsProjectedPitLookup(bin.Left) || IsProjectedPitLookup(bin.Right);
+		}
+
+		if (expr is ConditionalExpressionSyntax cond)
+		{
+			return IsProjectedPitLookup(cond.WhenTrue) || IsProjectedPitLookup(cond.WhenFalse);
+		}
+
 		if (expr is InvocationExpressionSyntax inv &&
 			inv.Expression is MemberAccessExpressionSyntax ma &&
 			ma.Name.Identifier.Text is "Get" or "GetAt" &&

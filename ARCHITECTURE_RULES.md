@@ -214,6 +214,9 @@ Rules are numbered continuously (`RAI001`–`RAI016`) with no gaps, while **Rule
   pit.Add(delta);
   pit.Save();
 
+  // Or via a one-line sparse helper that strips protected envelope keys (e.g. AIA's SparsePayload.Item):
+  pit.Add(SparsePayload.Item(id, patch));
+
   // Option B: Live reference property mutation (CR033)
   var item = pit.Get(id);
   item["Status"] = "Confirmed";
