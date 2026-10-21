@@ -1272,7 +1272,7 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 
 	private static bool IsLikelyPitReceiver(ExpressionSyntax expr)
 	{
-		var name = ExtractLastIdentifier(expr);
+		var name = ExtractLastIdentifier(expr).TrimStart('_');
 		return name.Equals("pit", StringComparison.OrdinalIgnoreCase) ||
 			name.EndsWith("Pit", StringComparison.Ordinal) ||
 			name is "Person" or "Object" or "Place" or "Activity";
