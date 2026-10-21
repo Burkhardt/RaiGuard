@@ -222,6 +222,7 @@ Rules are numbered continuously (`RAI001`–`RAI016`) with no gaps, while **Rule
   item["Status"] = "Confirmed";
   pit.Save();
   ```
+- **Scope**: Fires only when the added item is provably a Pit projection (`pit.Get(id)`, `pit[id]`, `pit[id]!`, `pit[id] ?? throw …`, or an extended `PitItem` parameter). Freshly minted items (`new PitItem(...)`, `SparsePayload.Item(...)`, loops over locally generated collections) are never flagged. To relax the rule in test fixtures, see [INTEGRATION_GUIDE.md — Relaxing `RAI011` in Test Projects](INTEGRATION_GUIDE.md#relaxing-rai011-in-test-projects).
 
 ---
 

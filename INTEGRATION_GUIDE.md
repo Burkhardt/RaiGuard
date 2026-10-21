@@ -158,6 +158,30 @@ dotnet_diagnostic.RAI002.severity = none
 dotnet_diagnostic.RAI003.severity = none
 ```
 
+### Relaxing `RAI011` in Test Projects
+
+`RAI011` targets the production hazard where a projected snapshot (`pit[id]` / `pit.Get(id)`) is extended and added back whole, reverting concurrent writes from other replicas. Test fixtures usually run against isolated, single-writer temp pits, where seeding or rewriting a whole record is legitimate and churning fixtures adds no safety (field feedback from AIA). Keep the rule at full strength in production code and downgrade it for test projects only:
+
+```ini
+# Root .editorconfig — production code keeps RAI011 as a warning (or error)
+[*.cs]
+dotnet_diagnostic.RAI011.severity = warning
+
+# Test projects: whole-record seeding is expected; surface as a suggestion only
+[{*.Test,*.Tests}/**.cs]
+dotnet_diagnostic.RAI011.severity = suggestion
+```
+
+Use `none` instead of `suggestion` to silence it entirely. Tests that pin the concurrency contract on purpose (e.g. a test proving that a full-snapshot write does or does not revert a concurrent change) can opt out locally instead of relaxing the whole project:
+
+```csharp
+#pragma warning disable RAI011 // deliberate full-snapshot write: this test pins the CR040 contract
+_pit.Add(live);
+#pragma warning restore RAI011
+```
+
+> **Note:** `.editorconfig` severities apply to the Roslyn analyzer during `dotnet build` and in the IDE. The `rail` CLI is a standalone scanner and does not read `.editorconfig`; to get the same split in CI, point `rail check --rule RAI011` at production project directories only (e.g. `rail check AIA.Core --rule RAI011`).
+
 ---
 
 ## 6. Terminal & CI/CD Linting Workflows (`rail`)
