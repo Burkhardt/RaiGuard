@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Testing;
+using RaiGuard.CodeFixes.Fixes;
 using RaiGuard.Core.Rules;
 using Xunit;
 
@@ -618,5 +619,122 @@ namespace TestNamespace
 			.WithArguments("'ImageNamingConvention.Legacy' is deprecated for new multi-image and diagram assets; prefer 'ImageNamingConvention.Structured'");
 
 		await CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode, expected0, expected1);
+	}
+
+	[Fact]
+	public async Task RAI017_WhenAdHocMediaUrlInterpolationOrConcatenation_EmitsDiagnostic()
+	{
+		var testCode = @"
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		public void TestMethod(string tenant, string show, string inr)
+		{
+			var url = {|#0:$""/img/{tenant}/{show}_{inr}.mp4""|};
+			var poster = {|#1:$""https://api.aia.software/img/{show}?inr={inr}&tmp=Poster&sub={tenant}""|};
+			var raw = {|#2:""/img/"" + tenant + ""/"" + show|};
+		}
+	}
+}";
+
+		var expected0 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
+			.Diagnostic("RAI017")
+			.WithLocation(0);
+
+		var expected1 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
+			.Diagnostic("RAI017")
+			.WithLocation(1);
+
+		var expected2 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
+			.Diagnostic("RAI017")
+			.WithLocation(2);
+
+		await CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode, expected0, expected1, expected2);
+	}
+
+	[Fact]
+	public async Task RAI017_WhenExemptMediaUrlsOrImageControllerOrAssertion_DoesNotEmitDiagnostic()
+	{
+		var testCode = @"
+namespace TestNamespace
+{
+	public static class Assert
+	{
+		public static void Equal(object a, object b) { }
+	}
+
+	public class MediaUrls
+	{
+		public string GetUrl(string a, string b) => $""/img/{a}/{b}"";
+	}
+
+	public class ImageController
+	{
+		public string Route(string a, string b) => $""/img/{a}/{b}"";
+	}
+
+	public class TestClass
+	{
+		public void TestMethod(string domain, string itemId, string url)
+		{
+			Assert.Equal($""/img/{domain}/{itemId}"", url);
+		}
+	}
+}";
+
+		await CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode);
+	}
+
+	[Fact]
+	public async Task RAI017_CodeFix_ReplacesWithMediaUrls()
+	{
+		var testCode = @"
+namespace AIA.Core.Services.Media
+{
+	public static class MediaUrls
+	{
+		public static string Video(string show, string inr, string preset = null, string sub = null) => """";
+	}
+}
+
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		public void TestMethod(string tenant, string show, string inr)
+		{
+			var url = {|#0:$""/img/{tenant}/{show}_{inr}.mp4""|};
+		}
+	}
+}";
+
+		var fixedCode = @"using AIA.Core.Services.Media;
+
+namespace AIA.Core.Services.Media
+{
+	public static class MediaUrls
+	{
+		public static string Video(string show, string inr, string preset = null, string sub = null) => """";
+	}
+}
+
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		public void TestMethod(string tenant, string show, string inr)
+		{
+			var url = MediaUrls.Video(show, inr, preset: ""Stage"", sub: tenant);
+		}
+	}
+}";
+
+		var expected = CSharpCodeFixVerifier<RaiKeepArchitectureAnalyzer, RAI017CodeFixProvider, DefaultVerifier>
+			.Diagnostic("RAI017")
+			.WithLocation(0);
+
+		await CSharpCodeFixVerifier<RaiKeepArchitectureAnalyzer, RAI017CodeFixProvider, DefaultVerifier>
+			.VerifyCodeFixAsync(testCode, expected, fixedCode);
 	}
 }

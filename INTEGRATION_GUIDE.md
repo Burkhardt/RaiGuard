@@ -260,7 +260,7 @@ jobs:
 
 ---
 
-## Summary of Guardrail Rules (`RAI001`–`RAI016`)
+## Summary of Guardrail Rules (`RAI001`–`RAI017`)
 
 | Rule ID | Groups | Severity | Title | Remedy |
 |---------|--------|----------|-------|--------|
@@ -280,3 +280,4 @@ jobs:
 | **`RAI014`** | `JsonPit`, `CloudSync` | Warning | Require `Pit` disposal (`CR033`) | Wrap `new Pit(...)` in `using var pit = ...` or dispose `_pit` in `IDisposable.Dispose()` |
 | **`RAI015`** | `JsonPit` | Warning | Prohibit unexpanded `{...}`/`<...>` placeholders in `PitItem` IDs (`CR049`) and unsafe `JObject.Parse` | Validate IDs before `new PitItem(id)` and parse JSON via `JsonFile` or `JsonReader` with `DateParseHandling.None` |
 | **`RAI016`** | `RaiMedia` | Warning | Enforce `RaiUtils.WordCase` (`CR019`), alphanumeric `DiagramBuilder` `baseItemId` (`CR025`), and `ImageNamingConvention.Structured` | Use `RaiUtils.WordCase`, alphanumeric `baseItemId` without `_UCD`/`_CD` suffixes, and `ImageNamingConvention.Structured` |
+| **`RAI017`** | `RaiMedia` | Warning | Prohibit ad-hoc `/img/` media URL string composition | Use canonical `MediaUrls.Video(...)`, `MediaUrls.Poster(...)`, or `MediaUrls.Image(...)` instead of manual string formatting |

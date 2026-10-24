@@ -321,6 +321,32 @@ Rules are numbered continuously (`RAI001`–`RAI016`) with no gaps, while **Rule
 
 ---
 
+### `RAI017` — Prohibit Ad-Hoc `/img/` Media URL Composition
+- **Groups**: `RaiMedia`
+- **Why Mainstream LLMs Fail**: LLMs routinely compose `/img/` endpoints using manual string interpolation (`$"/img/{tenant}/{show}_{inr}.mp4"`) or concatenation (`"https://api.aia.software/img/" + show + ...`).
+- **Why It Breaks AIA / RAIkeep**: Manual `/img/` composition leaks internal filesystem structures (`ItemIdTree8x2`), introduces URL drift, bypasses media presets (`Stage`, `Poster`), hardcodes extensions (`.mp4`, `.svg`), and creates fragile dependencies on raw routing shapes (ADR-0011, ADR-0012).
+- **Target Patterns**:
+  Any `InterpolatedStringExpressionSyntax` or binary addition (`+`) containing `"/img/"` or `"api.aia.software/img/"` outside of:
+  - `MediaUrls` (the canonical helper definition)
+  - `ImageController` (the raw routing endpoint definitions)
+  - Unit test assertion invocations (e.g. `Assert.Equal(...)`, `.Should()....`)
+- **Before (Prohibited)**:
+  ```csharp
+  // Manual string interpolation
+  var url = $"/img/{tenant}/{show}_{inr}.mp4";
+  var poster = $"https://api.aia.software/img/{show}?inr={inr}&tmp=Poster&sub={sub}";
+  ```
+- **After (Idiomatic AIA / RAIkeep)**:
+  ```csharp
+  using AIA.Core.Services.Media;
+
+  var url = MediaUrls.Video(show, inr, preset: "Stage", sub: tenant);
+  var poster = MediaUrls.Poster(show, inr, sub: tenant);
+  ```
+- **Remediation**: Use `rail fix --rule RAI017` or apply the Roslyn CodeFix `RAI017CodeFixProvider` (*"Replace with MediaUrls.Video / MediaUrls.Image"*).
+
+---
+
 ## Part II: Empirical Cross-Repository Audit (`AIA` & `AfricaStage`)
 
 Running `rail check` across the two internal production repositories (`../../AIA` and `../../AfricaStage`) and the `RAIkeep` sibling repositories surfaced the following real-world violations:
@@ -343,4 +369,5 @@ Running `rail check` across the two internal production repositories (`../../AIA
 | **`RAI014`** | `JsonPit`, `CloudSync` | 122 | 31 | 153 undisposed `new Pit(...)` instances across test suites and helper services leaking `ActiveCanonicalPitPaths` reservations |
 | **`RAI015`** | `JsonPit` | 86 | 58 | 144 calls to `JObject.Parse` / `JArray.Parse` / `JToken.Parse` with default `DateParseHandling.DateTime` |
 | **`RAI016`** | `RaiMedia` | 0 | 0 | Preventative guard for `RaiUtils.WordCase` (`CR019`), `DiagramBuilder` `baseItemId` (`CR025`), and `ImageNamingConvention.Structured` |
-| **Total** | **6 Group Sets** | **875** | **7,768** | Across 108 files in `AIA` and 147 files in `AfricaStage` |
+| **`RAI017`** | `RaiMedia` | 5 | 0 | `AIA`: `ActivityController.cs:294,400,494`, `BlueprintController.cs:154,272` (ad-hoc `/img/` string interpolation outside `MediaUrls`) |
+| **Total** | **6 Group Sets** | **880** | **7,768** | Across 108 files in `AIA` and 147 files in `AfricaStage` |

@@ -66,7 +66,7 @@ public static class Messages
 		$"--groups\t{Icons.Shield}\tlist all rule groups (sets) with their member RAIxxx rules",
 		$"--json\t\t{(Json ? Icons.Success : Icons.NotAvailable)}\toutput diagnostics in JSON format",
 		$"--dry-run\t{Icons.Info}\tsimulate code fixes without modifying source files on disk",
-		$"{Icons.Info} Rules\t{Icons.Shield}\tRAI001..RAI016 across sets: OsLib, CloudSync, JsonPit, CliCommand, RaiMedia, Formatting",
+		$"{Icons.Info} Rules\t{Icons.Shield}\tRAI001..RAI017 across sets: OsLib, CloudSync, JsonPit, CliCommand, RaiMedia, Formatting",
 	];
 
 	private static string PathDescription() =>
@@ -414,10 +414,16 @@ public static class Program
 			bool allowRai004 = filterSet == null || filterSet.Contains("RAI004");
 			bool allowRai013 = filterSet == null || filterSet.Contains("RAI013");
 			bool allowRai016 = filterSet == null || filterSet.Contains("RAI016");
+			bool allowRai017 = filterSet == null || filterSet.Contains("RAI017");
 
 			var rewrites = root.DescendantNodes()
 				.Where(node =>
 				{
+					if (allowRai017 && node is InterpolatedStringExpressionSyntax interpolated &&
+						interpolated.Contents.OfType<InterpolatedStringTextSyntax>().Any(t => t.TextToken.ValueText.Contains("/img/") || t.TextToken.ValueText.Contains("api.aia.software/img/")))
+					{
+						return true;
+					}
 					if (node is InvocationExpressionSyntax inv && inv.Expression is MemberAccessExpressionSyntax ma)
 					{
 						if (allowRai001 && RaiKeepArchitectureAnalyzer.IsDirectoryTypeAccess(ma.Expression))
@@ -500,9 +506,19 @@ public static class Program
 			}
 
 			bool hasOsLibRewrite = false;
+			bool hasMediaUsingRewrite = false;
 
 			var newRoot = root.ReplaceNodes(rewrites, (original, _) =>
 			{
+				if (allowRai017 && original is InterpolatedStringExpressionSyntax interpolatedMedia)
+				{
+					var replacement = RaiGuard.CodeFixes.Fixes.RAI017CodeFixProvider.BuildMediaUrlsInvocation(interpolatedMedia);
+					if (replacement != null)
+					{
+						hasMediaUsingRewrite = true;
+						return replacement.WithTriviaFrom(interpolatedMedia);
+					}
+				}
 				if (original is ObjectCreationExpressionSyntax creation &&
 					creation.ArgumentList?.Arguments.Count == 1 &&
 					creation.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax lit)
@@ -733,6 +749,11 @@ public static class Program
 				newRoot = AddOsLibUsing(newRoot);
 			}
 
+			if (hasMediaUsingRewrite && !HasMediaUsing(newRoot))
+			{
+				newRoot = AddMediaUsing(newRoot);
+			}
+
 			File.WriteAllText(filePath, newRoot.ToFullString());
 			Messages.WriteSuccess($"{Icons.Check} Fixed {rewrites.Count} violation(s) in {filePath}");
 		}
@@ -865,6 +886,52 @@ public static class Program
 				.NormalizeWhitespace()
 				.WithTrailingTrivia(lineEnding);
 			return compUnit.AddUsings(osLibUsing);
+		}
+	}
+
+	private static bool HasMediaUsing(SyntaxNode root)
+	{
+		return root.DescendantNodes()
+			.OfType<UsingDirectiveSyntax>()
+			.Any(u => u.Name?.ToString() == "AIA.Core.Services.Media");
+	}
+
+	private static SyntaxNode AddMediaUsing(SyntaxNode root)
+	{
+		if (root is not CompilationUnitSyntax compUnit)
+		{
+			return root;
+		}
+
+		var lineEnding = root.ToFullString().Contains("\r\n")
+			? SyntaxFactory.CarriageReturnLineFeed
+			: SyntaxFactory.LineFeed;
+
+		if (compUnit.Usings.Count > 0)
+		{
+			var lastUsing = compUnit.Usings.Last();
+			var trailingTrivia = lastUsing.GetTrailingTrivia();
+			var singleEol = trailingTrivia.FirstOrDefault(t => t.IsKind(SyntaxKind.EndOfLineTrivia));
+			if (singleEol == default)
+			{
+				singleEol = lineEnding;
+			}
+
+			var updatedLastUsing = lastUsing.WithTrailingTrivia(singleEol);
+			var mediaUsing = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("AIA.Core.Services.Media"))
+				.NormalizeWhitespace()
+				.WithTrailingTrivia(trailingTrivia);
+
+			return compUnit
+				.ReplaceNode(lastUsing, updatedLastUsing)
+				.AddUsings(mediaUsing);
+		}
+		else
+		{
+			var mediaUsing = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("AIA.Core.Services.Media"))
+				.NormalizeWhitespace()
+				.WithTrailingTrivia(lineEnding);
+			return compUnit.AddUsings(mediaUsing);
 		}
 	}
 

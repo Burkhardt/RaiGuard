@@ -91,7 +91,8 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 		DiagnosticDescriptors.ProhibitPitDirExistsAndReloadHazards,
 		DiagnosticDescriptors.EnforcePitInstanceDisposal,
 		DiagnosticDescriptors.ProhibitInvalidPitIdAndUnsafeJsonParse,
-		DiagnosticDescriptors.EnforceRaiUtilsAndDiagramConventions
+		DiagnosticDescriptors.EnforceRaiUtilsAndDiagramConventions,
+		DiagnosticDescriptors.ProhibitAdHocMediaUrlComposition
 	);
 
 	public override void Initialize(AnalysisContext context)
@@ -123,6 +124,7 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 		var findings = new List<SyntaxDiagnosticFinding>();
 		var root = tree.GetRoot();
 		var filterSet = DiagnosticDescriptors.ResolveFilterSet(ruleFilter, groupFilter);
+		var suppressions = SuppressionMap.Build(root);
 
 		bool MatchesRule(string id) =>
 			filterSet == null || filterSet.Contains(id);
@@ -137,6 +139,11 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			var lineSpan = location.GetLineSpan();
 			var line = lineSpan.StartLinePosition.Line + 1;
 			var col = lineSpan.StartLinePosition.Character + 1;
+
+			if (suppressions.IsSuppressed(descriptor.Id, location.SourceSpan.Start, line))
+			{
+				return;
+			}
 			var formatted = messageArgs.Length == 0
 				? descriptor.MessageFormat.ToString()
 				: string.Format(descriptor.MessageFormat.ToString(), messageArgs);
@@ -476,7 +483,45 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 		// 7. Block/Method Dataflow Rules: RAI008 (Cloud In-Place), RAI011 (Pit RMW), RAI014 (Pit Disposal)
 		AnalyzeMethodAndClassSemantics(root, MatchesRule, AddFinding);
 
-		// 8. Formatting Rules (RAI010) when running via CLI syntax engine
+		// 8. Media URL Invariants: RAI017 (Prohibit ad-hoc '/img/' media URL composition)
+		if (MatchesRule("RAI017"))
+		{
+			foreach (var interpolated in root.DescendantNodes().OfType<InterpolatedStringExpressionSyntax>())
+			{
+				bool hasMediaUrl = interpolated.Contents
+					.OfType<InterpolatedStringTextSyntax>()
+					.Any(t => ContainsMediaUrlPattern(t.TextToken.ValueText));
+
+				if (hasMediaUrl && !IsExemptMediaUrlClass(interpolated) && !IsInsideTestAssertion(interpolated))
+				{
+					AddFinding(DiagnosticDescriptors.ProhibitAdHocMediaUrlComposition, interpolated.GetLocation());
+				}
+			}
+
+			foreach (var bin in root.DescendantNodes().OfType<BinaryExpressionSyntax>())
+			{
+				if (!bin.IsKind(SyntaxKind.AddExpression))
+				{
+					continue;
+				}
+
+				if (bin.Parent is BinaryExpressionSyntax parentBin && parentBin.IsKind(SyntaxKind.AddExpression))
+				{
+					continue;
+				}
+
+				bool hasMediaUrl = bin.DescendantNodesAndSelf()
+					.OfType<LiteralExpressionSyntax>()
+					.Any(l => l.IsKind(SyntaxKind.StringLiteralExpression) && ContainsMediaUrlPattern(l.Token.ValueText));
+
+				if (hasMediaUrl && !IsExemptMediaUrlClass(bin) && !IsInsideTestAssertion(bin))
+				{
+					AddFinding(DiagnosticDescriptors.ProhibitAdHocMediaUrlComposition, bin.GetLocation());
+				}
+			}
+		}
+
+		// 9. Formatting Rules (RAI010) when running via CLI syntax engine
 		if (includeSystemIoAndFormatting && MatchesRule("RAI010"))
 		{
 			AnalyzeWhitespaceSyntax(tree, root, AddFinding);
@@ -1355,6 +1400,56 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			return true;
 		}
 
+		return false;
+	}
+
+	private static bool ContainsMediaUrlPattern(string text)
+	{
+		if (text.Contains("/img/…") || text.Contains("/img/*"))
+		{
+			return false;
+		}
+
+		return text.Contains("/img/") || text.Contains("api.aia.software/img/");
+	}
+
+	private static bool IsExemptMediaUrlClass(SyntaxNode node)
+	{
+		var classDecl = node.FirstAncestorOrSelf<ClassDeclarationSyntax>();
+		if (classDecl != null)
+		{
+			var name = classDecl.Identifier.Text;
+			if (name is "MediaUrls" or "ImageController")
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static bool IsInsideTestAssertion(SyntaxNode node)
+	{
+		for (var current = node.Parent; current != null; current = current.Parent)
+		{
+			if (current is InvocationExpressionSyntax inv)
+			{
+				var exprText = inv.Expression.ToString();
+				if (exprText.StartsWith("Assert.", StringComparison.Ordinal) ||
+					exprText.Contains(".Should(") ||
+					exprText.Contains(".Should().") ||
+					exprText.StartsWith("StringAssert.", StringComparison.Ordinal) ||
+					exprText.StartsWith("CollectionAssert.", StringComparison.Ordinal) ||
+					exprText.StartsWith("Expect(", StringComparison.Ordinal))
+				{
+					return true;
+				}
+			}
+
+			if (current is MethodDeclarationSyntax or ClassDeclarationSyntax)
+			{
+				break;
+			}
+		}
 		return false;
 	}
 }

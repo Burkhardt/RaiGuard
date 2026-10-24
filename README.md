@@ -282,7 +282,7 @@ rail check --json
 
 ### Rule Group Sets
 
-Rules are numbered continuously (`RAI001`–`RAI016`) and organized into overlapping **Rule Group Sets** (`rail groups`). A rule may belong to multiple groups, and group members do not require consecutive numbers:
+Rules are numbered continuously (`RAI001`–`RAI017`) and organized into overlapping **Rule Group Sets** (`rail groups`). A rule may belong to multiple groups, and group members do not require consecutive numbers:
 
 | Group Set | Member Rules (`RAIxxx`) | Scope |
 |-----------|-------------------------|-------|
@@ -290,10 +290,10 @@ Rules are numbered continuously (`RAI001`–`RAI016`) and organized into overlap
 | **`CloudSync`** | `{ RAI001, RAI002, RAI004, RAI007, RAI008, RAI011, RAI013, RAI014 }` | Cloud-drive replication invariants (`CR022` in-place writes, `CR040` sparse deltas, `CR033` canonical path reservation, and reload safety) |
 | **`JsonPit`** | `{ RAI006, RAI008, RAI011, RAI012, RAI013, RAI014, RAI015 }` | Open-world sparse `Pit` and `PitItem` persistence, temporal merge, protected lifecycle attributes, `PitsCommand` gates, and `DateParseHandling.None` |
 | **`CliCommand`** | `{ RAI006, RAI013 }` | Typed `OsLib` CLI command execution (`PitsCommand`, `IorgCommand`, `RaidCommand`, `AmafuCommand`) and external CLI seed reload safety |
-| **`RaiMedia`** | `{ RAI006, RAI008, RAI016 }` | `RaiUtils.WordCase` (`CR019`), `RaiImage` (`ImageNamingConvention.Structured`, `IorgCommand`), and `RaiDiagram` (`DiagramBuilder` `baseItemId` per `CR025`, `RaidCommand`) |
+| **`RaiMedia`** | `{ RAI006, RAI008, RAI016, RAI017 }` | `RaiUtils.WordCase` (`CR019`), `RaiImage` (`ImageNamingConvention.Structured`, `IorgCommand`), `RaiDiagram` (`DiagramBuilder` `baseItemId` per `CR025`, `RaidCommand`), and canonical `MediaUrls` (`RAI017`) |
 | **`Formatting`** | `{ RAI010 }` | Tab indentation (`\t`) and single-space token separation invariants |
 
-### Rule Catalog (`RAI001`–`RAI016`)
+### Rule Catalog (`RAI001`–`RAI017`)
 
 | Rule ID | Groups | Severity | Description | Remedy |
 |---------|--------|----------|-------------|--------|
@@ -313,6 +313,7 @@ Rules are numbered continuously (`RAI001`–`RAI016`) and organized into overlap
 | `RAI014` | `JsonPit`, `CloudSync` | Warning | Undisposed `Pit` instance leaks `ActiveCanonicalPitPaths` reservation (`CR033`) | Wrap `new Pit(...)` in `using var pit = ...` or dispose the `_pit` field in `IDisposable.Dispose()` |
 | `RAI015` | `JsonPit` | Warning | Unexpanded `{...}`/`<...>` template placeholders in `PitItem` IDs (`CR049`) or `JObject.Parse` without `DateParseHandling.None` | Validate IDs before `new PitItem(id)` and parse JSON via `JsonFile` or `JsonReader` with `DateParseHandling.None` |
 | `RAI016` | `RaiMedia` | Warning | Obsolete `RaiImage.WordCase` (`CR019`), non-alphanumeric `DiagramBuilder` `baseItemId` (`CR025`), or non-`Structured` `ImageNamingConvention` | Use `RaiUtils.WordCase`, alphanumeric `baseItemId` without `_UCD`/`_CD` suffixes, and `ImageNamingConvention.Structured` |
+| `RAI017` | `RaiMedia` | Warning | Ad-hoc `/img/` media URL string composition or concatenation | Use canonical `MediaUrls.Video(...)`, `MediaUrls.Poster(...)`, or `MediaUrls.Image(...)` instead of manual formatting |
 
 For detailed *Before vs. After* code comparisons, architectural rationale (`CR019`, `CR022`, `CR025`, `CR033`, `CR040`, `CR049`), and the cross-repository empirical audit report, see [`ARCHITECTURE_RULES.md`](ARCHITECTURE_RULES.md).
 

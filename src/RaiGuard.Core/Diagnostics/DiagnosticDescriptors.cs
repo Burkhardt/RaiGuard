@@ -190,6 +190,15 @@ public static class DiagnosticDescriptors
 		isEnabledByDefault: true,
 		description: "Enforces CR019 (use RaiUtils.WordCase instead of obsolete RaiImage.WordCase), CR025 (DiagramBuilder baseItemId must be alphanumeric without pre-appended '_UCD'/'_CD' suffix), and ImageNamingConvention.Structured.");
 
+	public static readonly DiagnosticDescriptor ProhibitAdHocMediaUrlComposition = new(
+		id: "RAI017",
+		title: "Prohibit ad-hoc '/img/' media URL string composition",
+		messageFormat: "Do not compose '/img/' media URLs using string interpolation or concatenation. Use 'MediaUrls.{Video|Poster|Image}(...)' instead.",
+		category: ArchitectureCategory,
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true,
+		description: "Media URLs must be produced by the canonical MediaUrls helper to ensure proper parameterization, zero hardcoded extensions, and encapsulation of storage topology.");
+
 	public static readonly ImmutableArray<RuleGroup> Groups = ImmutableArray.Create(
 		new RuleGroup(
 			"OsLib",
@@ -209,8 +218,8 @@ public static class DiagnosticDescriptors
 			"RAI006", "RAI013"),
 		new RuleGroup(
 			"RaiMedia",
-			"RaiUtils.WordCase (CR019), RaiImage (ImageNamingConvention.Structured, IorgCommand), and RaiDiagram (DiagramBuilder baseItemId per CR025, RaidCommand)",
-			"RAI006", "RAI008", "RAI016"),
+			"RaiUtils.WordCase (CR019), RaiImage (ImageNamingConvention.Structured, IorgCommand), RaiDiagram (DiagramBuilder baseItemId per CR025, RaidCommand), and canonical MediaUrls (RAI017)",
+			"RAI006", "RAI008", "RAI016", "RAI017"),
 		new RuleGroup(
 			"Formatting",
 			"Tab indentation ('\\t') and single-space token separation invariants",
@@ -233,7 +242,8 @@ public static class DiagnosticDescriptors
 		new RuleCatalogEntry("RAI013", ProhibitPitDirExistsAndReloadHazards, "Use pit.JsonFile.Path.Exists() instead of pit.PitDir.Exists(), and use pit.Load() instead of pit.Reload() for pure disk reloads", "JsonPit", "CloudSync", "CliCommand"),
 		new RuleCatalogEntry("RAI014", EnforcePitInstanceDisposal, "Wrap local Pit instances in 'using var pit = new Pit(...)' and call '_pit?.Dispose()' in IDisposable.Dispose()", "JsonPit", "CloudSync"),
 		new RuleCatalogEntry("RAI015", ProhibitInvalidPitIdAndUnsafeJsonParse, "Pass concrete validated IDs (without '{' or '<') to PitItem, and parse JSON with DateParseHandling.None (PitJson / RaidJson5)", "JsonPit"),
-		new RuleCatalogEntry("RAI016", EnforceRaiUtilsAndDiagramConventions, "Use RaiUtils.WordCase, ImageNamingConvention.Structured, and alphanumeric DiagramBuilder baseItemIds without '_' suffixes", "RaiMedia")
+		new RuleCatalogEntry("RAI016", EnforceRaiUtilsAndDiagramConventions, "Use RaiUtils.WordCase, ImageNamingConvention.Structured, and alphanumeric DiagramBuilder baseItemIds without '_' suffixes", "RaiMedia"),
+		new RuleCatalogEntry("RAI017", ProhibitAdHocMediaUrlComposition, "Use canonical 'MediaUrls.Video(...)', 'MediaUrls.Poster(...)', or 'MediaUrls.Image(...)' instead of manual string formatting", "RaiMedia")
 	);
 
 	public static HashSet<string>? ResolveFilterSet(string? ruleFilter, string? groupFilter)

@@ -465,7 +465,7 @@ public class Sample
     }
 
     [Fact]
-    public void Main_RulesCommand_ListsAllSixteenRules()
+    public void Main_RulesCommand_ListsAllSeventeenRules()
     {
         var originalOut = Console.Out;
         using var sw = new StringWriter();
@@ -480,7 +480,7 @@ public class Sample
             {
                 "RAI001", "RAI002", "RAI003", "RAI004", "RAI005", "RAI006",
                 "RAI007", "RAI008", "RAI009", "RAI010", "RAI011", "RAI012",
-                "RAI013", "RAI014", "RAI015", "RAI016"
+                "RAI013", "RAI014", "RAI015", "RAI016", "RAI017"
             })
             {
                 Assert.Contains(ruleId, output);
@@ -573,6 +573,7 @@ public class Sample
 		var parsed = JObject.Parse(""{}"");
 		var builder = new OneUseCaseDiagramBuilder(""Order_UCD"");
 		var conv = ImageNamingConvention.Legacy;
+		var mediaUrl = $""/img/{tenant}/{show}_{inr}.mp4"";
 	}
 }");
 
@@ -596,6 +597,7 @@ public class Sample
             Assert.Contains("RAI014", output);
             Assert.Contains("RAI015", output);
             Assert.Contains("RAI016", output);
+            Assert.Contains("RAI017", output);
         }
         finally
         {
@@ -619,6 +621,7 @@ public class Sample
 		var root = new RaiPath(""/Users/rsb/temp/AfricaStage_TestRoot"");
 		var exists = userPit.PitDir.Exists();
 		var conv = ImageNamingConvention.Legacy;
+		var mediaUrl = $""/img/{tenant}/{show}_{inr}.mp4"";
 	}
 }");
 
