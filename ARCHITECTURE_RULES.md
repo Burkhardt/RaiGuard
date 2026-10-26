@@ -113,20 +113,38 @@ Rules are numbered continuously (`RAI001`–`RAI016`) with no gaps, while **Rule
 
 ---
 
-### `RAI006` — Prohibit Bypassing Typed `OsLib` `CliCommand` Wrappers
+### `RAI006` — Use Typed `OsLib` `CliCommand` Wrappers
+
 - **Groups**: `OsLib`, `JsonPit`, `CliCommand`, `RaiMedia`
-- **Why Mainstream LLMs Fail**: LLMs spawn external tools with `System.Diagnostics.Process` / `ProcessStartInfo`, or instantiate raw `new RaiSystem("pits", args)` directly.
-- **Why It Breaks RAIkeep**: `OsLib` provides typed wrappers (`PitsCommand`, `IorgCommand`, `RaidCommand`, `AmafuCommand`, `CliCommand`). Critically, `PitsCommand` enforces per-root/per-pit `SemaphoreSlim` target gates (`PitsCommand.TargetGates`) so concurrent API requests never corrupt the same `.pit` file during external CLI execution. Calling `new RaiSystem("pits", ...)` bypasses those gates entirely.
-- **Before (Prohibited)**:
+- Typed wrappers preserve argument tokens. `PitsCommand` also coordinates calls
+  for each execution host, cloud, tenant or filesystem root, and pit within the
+  calling process. Cross-process replication remains the responsibility of the
+  JsonPit storage protocol.
+- Create requests with a public factory; attach options with a `with` expression:
+
   ```csharp
-  var sys = new RaiSystem("pits", $"seed Person --source {src} -r {tenant} -n");
-  sys.Exec(out string output);
+  var request = PitsSeedRequest.ForPit("Person", sourceFile) with
+  {
+      Options = new PitsCommandOptions
+      {
+          Tenant = "SampleTenant",
+          CloudProvider = "OneDrive",
+          NoLogo = true
+      }
+  };
+  var result = new PitsCommand().Seed(request);
   ```
-- **After (Idiomatic RAIkeep)**:
-  ```csharp
-  var cmd = new PitsCommand($"seed Person --source {src} -r {tenant} -n");
-  cmd.Exec(out string output);
-  ```
+
+- `Tenant` stays a bare name. `PitRoot` is a typed filesystem root; it cannot be
+  combined with `Tenant`. Tenant-scoped mutations require an explicit cloud.
+- The RAI006 code fix handles immediate `new RaiSystem("pits", ...).ExecResult()`
+  seed calls with recoverable constant tokens. It supports constant token arrays
+  and unquoted constant strings, preserves supported flags, and checks that the
+  consuming OsLib contract includes `Tenant`.
+- Dynamic/interpolated command strings, host-dependent quoted strings, buffered
+  stdin, unknown flags, deferred process execution, and other verbs require
+  manual migration. The rule help links to the
+  [CR069 contract](https://github.com/Burkhardt/RAIkeep/blob/main/doc/CR069_AIA_to_RAIkeep_PitsCommand-Tenant-Scoping-and-Public-Contracts.md).
 
 ---
 

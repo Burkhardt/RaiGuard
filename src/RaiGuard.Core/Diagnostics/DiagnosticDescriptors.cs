@@ -41,6 +41,7 @@ public sealed class RuleCatalogEntry
 
 public static class DiagnosticDescriptors
 {
+	public const string PitsSeedUsage = "new PitsCommand().Seed(PitsSeedRequest.ForPit(pit, sourceFile) with { Options = new PitsCommandOptions { Tenant = tenantName, CloudProvider = cloudProvider, NoLogo = true } })";
 	private const string Category = "RaiGuard.Reliability";
 	private const string FormattingCategory = "RaiGuard.Formatting";
 	private const string JsonPitCategory = "RaiGuard.JsonPit";
@@ -98,7 +99,8 @@ public static class DiagnosticDescriptors
 		category: ArchitectureCategory,
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true,
-		description: "Enforces usage of typed OsLib CliCommand subclasses (PitsCommand, IorgCommand, RaidCommand, AmafuCommand, JpitCommand, DenoCommand, RCloneCommand, UnzipCommand, ImageMagickCommand, PlantUmlCommand) instead of raw Process.Start or untyped RaiSystem.");
+		description: "Use typed OsLib CliCommand subclasses for tokenized arguments and target gates. For pits seed: " + PitsSeedUsage + ". Tenant is a plain name, PitRoot is a filesystem path, and they are mutually exclusive. Dynamic command strings require manual migration using the documented pattern.",
+		helpLinkUri: "https://github.com/Burkhardt/RAIkeep/blob/main/doc/CR069_AIA_to_RAIkeep_PitsCommand-Tenant-Scoping-and-Public-Contracts.md");
 
 	public static readonly DiagnosticDescriptor ProhibitEnvironmentConfigBypass = new(
 		id: "RAI007",

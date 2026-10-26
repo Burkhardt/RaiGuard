@@ -3,7 +3,7 @@
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<PackageId>RaiGuard.Analyzer</PackageId>
-		<Version>4.5.13</Version>
+		<Version>4.5.14</Version>
 		<Authors>Rainer Burkhardt</Authors>
 		<Copyright>© Rainer Burkhardt</Copyright>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
