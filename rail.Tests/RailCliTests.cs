@@ -510,13 +510,52 @@ public class Sample
             Assert.Contains("Group 'CliCommand'", output);
             Assert.Contains("Group 'RaiMedia'", output);
             Assert.Contains("Group 'Formatting'", output);
+            Assert.All(output.Split('\n'), line => Assert.True(line.TrimEnd('\r').Length <= 90, line));
+            Assert.DoesNotContain("[RAI", output);
+            Assert.Contains("\n  RAI001 ", output);
             // Non-consecutive set membership in CloudSync:
-            Assert.Contains("RAI001, RAI002, RAI004, RAI007, RAI008, RAI011, RAI013, RAI014", output);
+            var unwrapped = string.Join(" ", output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+            Assert.Contains("RAI001, RAI002, RAI004, RAI007, RAI008, RAI011, RAI013, RAI014", unwrapped);
         }
         finally
         {
             Console.SetOut(originalOut);
         }
+    }
+
+    [Fact]
+    public void Groups_WordWrap_PreservesWordsAndIndentsAfterRuleId()
+    {
+        const string prefix = "  RAI001 ";
+        var text = string.Join(" ", System.Linq.Enumerable.Repeat("whole-word", 20));
+        var lines = System.Linq.Enumerable.ToArray(Program.WrapGroupText(prefix, text));
+        Assert.True(lines.Length > 1);
+        Assert.StartsWith(prefix, lines[0]);
+        Assert.All(lines, line => Assert.True(line.Length <= 90));
+        Assert.All(System.Linq.Enumerable.Skip(lines, 1), line => Assert.StartsWith(new string(' ', prefix.Length), line));
+        Assert.Equal(text, string.Join(" ", System.Linq.Enumerable.Select(lines, line => line[prefix.Length..])));
+        var longWord = new string('x', 100);
+        Assert.Equal(new[] { prefix + longWord }, Program.WrapGroupText(prefix, longWord));
+    }
+
+    [Fact]
+    public void Groups_Style_SeparatesIdsLabelsAndDescriptions()
+    {
+        Assert.Equal(new[] { "\u001b[1;94mRAI001\u001b[0m\u001b[1;94m \u001b[0m\u001b[36mRule title\u001b[0m" },
+            Program.FormatGroupText("RAI001 ", "Rule title", "1;94", "36", true));
+        Assert.Equal(new[] { "\u001b[3;35m  Description: \u001b[0m\u001b[33mGroup purpose\u001b[0m" },
+            Program.FormatGroupText("  Description: ", "Group purpose", "3;35", "33", true));
+        Assert.Equal(new[] { "RAI001 Rule title" },
+            Program.FormatGroupText("RAI001 ", "Rule title", "1;94", "36", false));
+        foreach (var style in new[] { "36", "33", "3;35" })
+        {
+            var output = string.Join("\n", Program.FormatGroupText("", "RAI001 and RAI017", style, style, true));
+            Assert.Contains("\u001b[1;94mRAI001\u001b[0m", output);
+            Assert.Contains("\u001b[1;94mRAI017\u001b[0m", output);
+        }
+        var header = string.Join("\n", Program.FormatGroupText("", "Group 'JsonPit' ({ RAI001 })", "36", "36", true));
+        Assert.Contains("\u001b[33mJsonPit\u001b[0m", header);
+        Assert.Contains("\u001b[1;94mRAI001\u001b[0m", header);
     }
 
     [Fact]

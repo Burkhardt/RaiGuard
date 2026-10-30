@@ -49,25 +49,31 @@ public static class Messages
 	public static string? TargetRule { get; set; }
 	public static string? TargetGroup { get; set; }
 
-	public static string[] Help =>
-	[
-		$"Commands:\t{Icons.Info}\tcheck, fix, rules, groups",
-		$"  rail check [<path>] [--rule <id>] [--group <name>] [--json]",
-		$"  rail fix [<path>] [--rule <id>] [--group <name>] [--dry-run]",
-		$"  rail rules [--rule <id>] [--group <name>] [--groups] [--json]",
-		$"  rail groups [--group <name>] [--json]",
-		$"-h, --help\t{Icons.Help}\tprint out all options",
-		$"-v, --version\t{Icons.Info}\tprint version info",
-		$"-n, --nologo\t{(Banner ? Icons.Banner : Icons.NoBanner)}\tdo not display the banner",
-		$"-b, --debug\t{(Debug ? Icons.Bug : Icons.Runner)}\tenable debug output",
-		$"-p, --path\t{Icons.Folder}\t{PathDescription()}",
-		$"--rule\t\t{Icons.Shield}\t{RuleDescription()}",
-		$"-g, --group\t{Icons.Shield}\t{GroupDescription()}",
-		$"--groups\t{Icons.Shield}\tlist all rule groups (sets) with their member RAIxxx rules",
-		$"--json\t\t{(Json ? Icons.Success : Icons.NotAvailable)}\toutput diagnostics in JSON format",
-		$"--dry-run\t{Icons.Info}\tsimulate code fixes without modifying source files on disk",
-		$"{Icons.Info} Rules\t{Icons.Shield}\tRAI001..RAI017 across sets: OsLib, CloudSync, JsonPit, CliCommand, RaiMedia, Formatting",
-	];
+	public static string[] Help => FormatHelp();
+	internal static string[] FormatHelp(bool useColor = false)
+	{
+		CliHelpStyle.Row[] rows =
+		[
+			new("Commands:", Icons.Info.ToString(), "check, fix, rules, groups"),
+			new("  rail check [<path>] [--rule <id>] [--group <name>] [--json]", "", ""),
+			new("  rail fix [<path>] [--rule <id>] [--group <name>] [--dry-run]", "", ""),
+			new("  rail rules [--rule <id>] [--group <name>] [--groups] [--json]", "", ""),
+			new("  rail groups [--group <name>] [--json]", "", ""),
+			new("Options:", "", ""),
+			new("-h, --help", Icons.Help.ToString(), "print out all options"),
+			new("-v, --version", Icons.Info.ToString(), "print version info"),
+			new("-n, --nologo", (Banner ? Icons.Banner : Icons.NoBanner).ToString(), "do not display the banner"),
+			new("-b, --debug", (Debug ? Icons.Bug : Icons.Runner).ToString(), "enable debug output"),
+			new("-p, --path", Icons.Folder.ToString(), PathDescription()),
+			new("--rule", Icons.Shield.ToString(), RuleDescription()),
+			new("-g, --group", Icons.Shield.ToString(), GroupDescription()),
+			new("--groups", Icons.Shield.ToString(), "list all rule groups (sets) with their member RAIxxx rules"),
+			new("--json", (Json ? Icons.Success : Icons.NotAvailable).ToString(), "output diagnostics in JSON format"),
+			new("--dry-run", Icons.Info.ToString(), "simulate code fixes without modifying source files on disk"),
+			new($"{Icons.Info} Rules", Icons.Shield.ToString(), "RAI001..RAI017 across sets: OsLib, CloudSync, JsonPit, CliCommand, RaiMedia, Formatting")
+		];
+		return CliHelpStyle.Rows(rows, useColor).ToArray();
+	}
 
 	private static string PathDescription() =>
 		!string.IsNullOrWhiteSpace(TargetPath) ? TargetPath : "target file or directory (defaults to current directory)";
@@ -103,43 +109,16 @@ public static class Messages
 
 	public static void WriteBanner(string text)
 	{
-		Console.Write($"{Icons.Banner} ");
-		WriteLine(text);
-		WriteBannerContent(text);
-		Console.Write($"{Icons.Banner} ");
-		WriteLine(text);
-	}
-
-	private static void WriteBannerContent(string text)
-	{
-		var oldColor = Console.ForegroundColor;
-		int index = 0;
-		while (index < text.Length)
-		{
-			int nextRail = text.IndexOf("rail", index, StringComparison.Ordinal);
-			if (nextRail < 0)
-			{
-				Console.Write(text[index..]);
-				break;
-			}
-
-			if (nextRail > index)
-			{
-				Console.Write(text[index..nextRail]);
-			}
-
-			Console.ForegroundColor = ConsoleColor.Green;
-			Console.Write("rail");
-			Console.ForegroundColor = oldColor;
-			index = nextRail + 4;
-		}
-		Console.WriteLine();
+		var version = typeof(Messages).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+		foreach (var line in CliHelpStyle.Banner($"{Icons.Info} {text} (rail v{version})", CliHelpStyle.UseColor()))
+			Console.WriteLine(line);
 	}
 
 	public static void WriteHelp()
 	{
-		foreach (var line in Help) WriteSuccess(line + Icons.HelpLineWidthCompensation);
+		foreach (var line in FormatHelp(CliHelpStyle.UseColor())) Console.WriteLine(line);
 	}
+
 }
 
 public static class Program
@@ -308,18 +287,70 @@ public static class Program
 			return 0;
 		}
 
+		var useColor = CliHelpStyle.UseColor();
 		foreach (var g in groups)
 		{
-			Messages.WriteInfo($"{Icons.Shield} Group '{g.Group}' ({{ {string.Join(", ", g.RuleIds)} }})");
-			Console.WriteLine($"  Description: {g.Description}");
+			foreach (var line in FormatGroupText($"{Icons.Shield} ", $"Group '{g.Group}' ({{ {string.Join(", ", g.RuleIds)} }})", "36", "36", useColor))
+				Console.WriteLine(line);
+			foreach (var line in FormatGroupText("  Description: ", g.Description, "3;35", "33", useColor))
+				Console.WriteLine(line);
 			foreach (var r in g.Rules)
 			{
-				Console.WriteLine($"    - [{r.Id}] {r.Title}");
+				foreach (var line in FormatGroupText($"  {r.Id} ", r.Title, "1;94", "36", useColor))
+					Console.WriteLine(line);
 			}
 			Console.WriteLine();
 		}
 
 		return 0;
+	}
+
+	internal static IEnumerable<string> FormatGroupText(string prefix, string text, string prefixStyle, string textStyle, bool useColor)
+	{
+		foreach (var line in WrapGroupText(prefix, text))
+			yield return StyleGroupSpan(line[..prefix.Length], prefixStyle, useColor)
+				+ StyleGroupSpan(line[prefix.Length..], textStyle, useColor);
+	}
+
+	private static string StyleGroupSpan(string text, string style, bool useColor)
+	{
+		if (!useColor) return text;
+		var output = new StringBuilder();
+		var start = 0;
+		foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(text, @"\bRAI[0-9]{3}\b"))
+		{
+			if (match.Index > start) output.Append(CliHelpStyle.Syntax(text[start..match.Index], style, true));
+			output.Append(CliHelpStyle.Paint(match.Value, "1;94", true));
+			start = match.Index + match.Length;
+		}
+		if (start < text.Length) output.Append(CliHelpStyle.Syntax(text[start..], style, true));
+		return output.ToString();
+	}
+
+	// Wrap plain text before terminal coloring; keep rule IDs and description labels
+	// on the first line, with continuation text hanging after the corresponding prefix.
+	internal static IEnumerable<string> WrapGroupText(string prefix, string text, int width = 90)
+	{
+		var indent = new string(' ', prefix.EnumerateRunes().Count());
+		var line = prefix;
+		var length = indent.Length;
+		var hasWord = false;
+		foreach (var word in text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+		{
+			var wordLength = word.EnumerateRunes().Count();
+			if (hasWord && length + 1 + wordLength > width)
+			{
+				yield return line;
+				line = indent;
+				length = indent.Length;
+				hasWord = false;
+			}
+			if (hasWord) { line += " "; length++; }
+			line += word;
+			length += wordLength;
+			hasWord = true;
+		}
+		yield return line;
 	}
 
 	private static int RunCheck(string? targetPath, string? ruleFilter, string? groupFilter, bool json)

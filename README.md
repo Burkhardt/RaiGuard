@@ -8,11 +8,12 @@ It operates as two complementary deliverables:
 1. **[`RaiGuard.Analyzer`](https://www.nuget.org/packages/RaiGuard.Analyzer)**: Roslyn analyzer and code-fix provider invoked during `dotnet build`, IDE keystrokes (VS Code C# Dev Kit), and CI workflows to emit live warnings and automated quick fixes.
 2. **[`RaiGuard`](https://www.nuget.org/packages/RaiGuard)**: Cross-platform .NET Global Tool CLI (`ToolCommandName=rail`) running anywhere .NET is installed to audit, verify, and automatically refactor source files across repositories.
 
-## Latest Version 4.5.14
+## Latest Version 4.5.15
 
-RAI006 now documents tenant-scoped typed seed requests and offers conservative code fixes. This release also includes the RAI011 fresh-item correction and the current RAI017 media URL checks.
+Help follows the shared CLI theme. Group listings wrap at 90 columns and use
+consistent rule-ID colors, hanging indents, and italic description labels.
 
-Latest release notes: [RaiGuard 4.5.14 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#4514).
+Latest release notes: [RaiGuard 4.5.15 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#4515).
 
 ## Previous Versions
 
@@ -56,7 +57,7 @@ sudo dotnet tool update RaiGuard --tool-path /usr/local/bin
 To enforce guardrails during `dotnet build` and in IDEs, add the analyzer package to your `.csproj` or repository `Directory.Build.props`:
 
 ```xml
-<PackageReference Include="RaiGuard.Analyzer" Version="4.5.14">
+<PackageReference Include="RaiGuard.Analyzer" Version="4.5.15">
   <PrivateAssets>all</PrivateAssets>
   <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 </PackageReference>
