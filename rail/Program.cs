@@ -110,7 +110,7 @@ public static class Messages
 	public static void WriteBanner(string text)
 	{
 		var version = typeof(Messages).Assembly.GetName().Version?.ToString(3) ?? "unknown";
-		foreach (var line in CliHelpStyle.Banner($"{Icons.Info} {text} (rail v{version})", CliHelpStyle.UseColor()))
+		foreach (var line in CliHelpStyle.Banner($"{Icons.Info} {text} (rail v{version}) on {Environment.MachineName}", CliHelpStyle.UseColor()))
 			Console.WriteLine(line);
 	}
 
