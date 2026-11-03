@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Testing;
 using RaiGuard.Core.Rules;
+using RaiGuard.Core.Diagnostics;
 using Xunit;
 
 namespace RaiGuard.Tests;
@@ -44,7 +45,7 @@ namespace TestNamespace
 }";
 
         var expected = CSharpAnalyzerVerifier<SystemIoFileAnalyzer, DefaultVerifier>
-            .Diagnostic("RAI002")
+            .Diagnostic(DiagnosticDescriptors.ProhibitSystemIoFile)
             .WithLocation(0)
             .WithArguments("Exists");
 
@@ -69,7 +70,7 @@ namespace TestNamespace
 }";
 
         var expected = CSharpAnalyzerVerifier<SystemIoFileAnalyzer, DefaultVerifier>
-            .Diagnostic("RAI002")
+            .Diagnostic(DiagnosticDescriptors.ProhibitSystemIoFile)
             .WithLocation(0)
             .WithArguments("ReadAllText");
 
@@ -94,7 +95,7 @@ namespace TestNamespace
 }";
 
         var expected = CSharpAnalyzerVerifier<SystemIoFileAnalyzer, DefaultVerifier>
-            .Diagnostic("RAI002")
+            .Diagnostic(DiagnosticDescriptors.ProhibitSystemIoFile)
             .WithLocation(0)
             .WithArguments("ReadAllLines");
 
@@ -119,7 +120,7 @@ namespace TestNamespace
 }";
 
         var expected = CSharpAnalyzerVerifier<SystemIoFileAnalyzer, DefaultVerifier>
-            .Diagnostic("RAI002")
+            .Diagnostic(DiagnosticDescriptors.ProhibitSystemIoFile)
             .WithLocation(0)
             .WithArguments("WriteAllText");
 
@@ -144,7 +145,7 @@ namespace TestNamespace
 }";
 
         var expected = CSharpAnalyzerVerifier<SystemIoFileAnalyzer, DefaultVerifier>
-            .Diagnostic("RAI002")
+            .Diagnostic(DiagnosticDescriptors.ProhibitSystemIoFile)
             .WithLocation(0)
             .WithArguments("Delete");
 
@@ -167,7 +168,7 @@ namespace TestNamespace
 }";
 
         var expected = CSharpAnalyzerVerifier<SystemIoFileAnalyzer, DefaultVerifier>
-            .Diagnostic("RAI002")
+            .Diagnostic(DiagnosticDescriptors.ProhibitSystemIoFile)
             .WithLocation(0)
             .WithArguments("Exists");
 

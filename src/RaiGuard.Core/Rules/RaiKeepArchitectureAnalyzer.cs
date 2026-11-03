@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using RaiGuard.Core.Diagnostics;
+using RaiGuard.Core.Helpers;
 
 namespace RaiGuard.Core.Rules;
 
@@ -964,6 +965,11 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			}
 			else if (typeName is "FileInfo" or "FileStream" or "StreamReader" or "StreamWriter")
 			{
+				if (typeName == "FileInfo" && FileInfoLengthAccess.FromCreation(creation) is not null)
+				{
+					addFinding(DiagnosticDescriptors.ProhibitFileInfoLength, creation.Type.GetLocation(), Array.Empty<object>());
+					continue;
+				}
 				addFinding(
 					DiagnosticDescriptors.ProhibitSystemIoFile,
 					creation.Type.GetLocation(),

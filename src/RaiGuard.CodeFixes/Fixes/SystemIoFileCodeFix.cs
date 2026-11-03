@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using RaiGuard.Core.Helpers;
 
 namespace RaiGuard.CodeFixes.Fixes;
 
@@ -32,6 +33,22 @@ public sealed class SystemIoFileCodeFix : CodeFixProvider
 		var diagnosticSpan = diagnostic.Location.SourceSpan;
 
 		var token = root.FindToken(diagnosticSpan.Start);
+		var creation = token.Parent?.FirstAncestorOrSelf<ObjectCreationExpressionSyntax>();
+		var lengthAccess = creation is not null && creation.Type.Span.Contains(diagnosticSpan)
+			? FileInfoLengthAccess.FromCreation(creation) : null;
+		if (lengthAccess is not null)
+		{
+			var replacement = await FileLengthReplacementAsync(context.Document, lengthAccess, context.CancellationToken).ConfigureAwait(false);
+			if (replacement is not null)
+			{
+				const string lengthTitle = "Replace with 'RaiFile.Length'";
+				context.RegisterCodeFix(CodeAction.Create(lengthTitle,
+					ct => Task.FromResult(context.Document.WithSyntaxRoot(root.ReplaceNode(lengthAccess, replacement.WithTriviaFrom(lengthAccess)))),
+					equivalenceKey: lengthTitle), diagnostic);
+			}
+			return;
+		}
+
 		var invocation = token.Parent?.FirstAncestorOrSelf<InvocationExpressionSyntax>()
 			?? root.FindNode(diagnosticSpan).FirstAncestorOrSelf<InvocationExpressionSyntax>();
 
@@ -61,6 +78,39 @@ public sealed class SystemIoFileCodeFix : CodeFixProvider
 			equivalenceKey: title);
 
 		context.RegisterCodeFix(codeAction, diagnostic);
+	}
+
+	private static async Task<ExpressionSyntax?> FileLengthReplacementAsync(
+		Document document, MemberAccessExpressionSyntax access, CancellationToken cancellationToken)
+	{
+		var model = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
+		if (model?.GetSymbolInfo(access, cancellationToken).Symbol is not IPropertySymbol property
+			|| property.Name != "Length" || property.ContainingType.ToDisplayString() != "System.IO.FileInfo")
+			return null;
+		var creation = FileInfoLengthAccess.InlineCreation(access);
+		if (creation?.ArgumentList?.Arguments.Count != 1 || creation.Initializer is not null) return null;
+		var raiFile = model.Compilation.GetTypeByMetadataName("OsLib.RaiFile");
+		var length = raiFile?.GetMembers("Length").OfType<IPropertySymbol>()
+			.FirstOrDefault(p => !p.IsStatic && p.Type.SpecialType == SpecialType.System_Int64
+				&& p.GetMethod?.DeclaredAccessibility == Accessibility.Public);
+		if (length is null) return null;
+		var argument = creation.ArgumentList.Arguments[0].Expression;
+		if (FileInfoLengthAccess.Unwrap(argument) is MemberAccessExpressionSyntax { Name.Identifier.ValueText: "FullName" } fullName)
+		{
+			var fullNameProperty = model.GetSymbolInfo(fullName, cancellationToken).Symbol as IPropertySymbol;
+			while (fullNameProperty?.OverriddenProperty is not null) fullNameProperty = fullNameProperty.OverriddenProperty;
+			var direct = SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+				fullName.Expression, SyntaxFactory.IdentifierName("Length"));
+			var directSymbol = model.GetSpeculativeSymbolInfo(access.SpanStart, direct, SpeculativeBindingOption.BindAsExpression).Symbol;
+			if (SymbolEqualityComparer.Default.Equals(fullNameProperty?.ContainingType, raiFile)
+				&& SymbolEqualityComparer.Default.Equals(directSymbol, length)) return direct;
+		}
+		if (!raiFile!.InstanceConstructors.Any(c => c.DeclaredAccessibility == Accessibility.Public
+			&& c.Parameters.Length == 1 && c.Parameters[0].Type.SpecialType == SpecialType.System_String)) return null;
+		var newFile = SyntaxFactory.ObjectCreationExpression(SyntaxFactory.ParseTypeName("global::OsLib.RaiFile"))
+			.WithNewKeyword(SyntaxFactory.Token(SyntaxKind.NewKeyword).WithTrailingTrivia(SyntaxFactory.Space))
+			.WithArgumentList(SyntaxFactory.ArgumentList(SyntaxFactory.SingletonSeparatedList(SyntaxFactory.Argument(argument))));
+		return SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, newFile, SyntaxFactory.IdentifierName("Length"));
 	}
 
 	private static bool IsSupportedMethod(string methodName, int argCount) =>

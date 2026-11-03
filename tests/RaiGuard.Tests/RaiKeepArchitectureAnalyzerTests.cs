@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Testing;
 using RaiGuard.CodeFixes.Fixes;
 using RaiGuard.Core.Rules;
+using RaiGuard.Core.Diagnostics;
 using Xunit;
 
 namespace RaiGuard.Tests;
@@ -78,7 +79,7 @@ namespace TestNamespace
 }";
 
 		var expected = CSharpAnalyzerVerifier<SystemIoFileAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI002")
+			.Diagnostic(DiagnosticDescriptors.ProhibitSystemIoFile)
 			.WithLocation(0)
 			.WithArguments("FileInfo");
 

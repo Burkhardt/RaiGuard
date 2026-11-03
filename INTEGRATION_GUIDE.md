@@ -227,6 +227,16 @@ rail fix --group Formatting
 - `Pit` side-effect-free existence and load rewrites (`RAI013`) and `RaiUtils.WordCase` canonicalization (`RAI016`).
 - Automatic insertion of `using OsLib;`.
 
+For file-size reads, RAI002 compilation warnings explicitly recommend
+`RaiFile.Length` (a `long` byte count). The Roslyn code action **Replace with
+'RaiFile.Length'** changes `new FileInfo(path).Length` to
+`new global::OsLib.RaiFile(path).Length`, or reuses `master.Length` for
+`new FileInfo(master.FullName).Length` when `master` is a verified `RaiFile`.
+This action requires an OsLib reference exposing `Length`; older references
+receive the warning but no invalid fix. `rail check` also reports the guidance
+for inline construction, while `rail fix` does not perform this semantic rewrite.
+An ordinary `dotnet build` reports the suggestion without changing source files.
+
 ---
 
 ## 7. Continuous Integration (CI) Integration

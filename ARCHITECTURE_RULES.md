@@ -62,6 +62,17 @@ Rules are numbered continuously (`RAI001`–`RAI016`) with no gaps, while **Rule
   }
   ```
 
+- **File size**: `RaiFile.Length` returns the physical size in bytes as a `long`, without reading the file contents. RAI002 reports a size-specific replacement for `FileInfo.Length` during compilation and for inline `new FileInfo(path).Length` in `rail check`.
+  ```csharp
+  // Before
+  var size = new FileInfo(master.FullName).Length;
+  // After, when master is already a RaiFile (or a derived type)
+  var size = master.Length;
+  // For a string path
+  var otherSize = new RaiFile(path).Length;
+  ```
+  The Roslyn code fix **Replace with 'RaiFile.Length'** handles inline construction, including fully qualified names, aliases and parentheses. It reuses a verified existing `RaiFile` receiver when possible; otherwise it creates a fully qualified `OsLib.RaiFile`. The fix is offered only when the referenced OsLib exposes the required public API. Existing `FileInfo` variables receive guidance for manual refactoring; their declarations and other uses are not rewritten automatically. Compilation reports diagnostics and does not edit source files. The syntax-only `rail fix` does not apply this semantic code fix.
+
 ---
 
 ### `RAI003` — Prohibit Direct Usage of `System.IO.Path` Methods, Method Groups & Separator Fields

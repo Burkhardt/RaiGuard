@@ -12,7 +12,7 @@ namespace RaiGuard.Core.Rules;
 public sealed class SystemIoFileAnalyzer : DiagnosticAnalyzer
 {
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-		ImmutableArray.Create(DiagnosticDescriptors.ProhibitSystemIoFile);
+		ImmutableArray.Create(DiagnosticDescriptors.ProhibitSystemIoFile, DiagnosticDescriptors.ProhibitFileInfoLength);
 
 	public override void Initialize(AnalysisContext context)
 	{
@@ -58,6 +58,14 @@ public sealed class SystemIoFileAnalyzer : DiagnosticAnalyzer
 
 		var symbolInfo = context.SemanticModel.GetSymbolInfo(memberAccess, context.CancellationToken);
 		var symbol = symbolInfo.Symbol ?? (symbolInfo.CandidateSymbols.Length > 0 ? symbolInfo.CandidateSymbols[0] : null);
+		if (symbol is IPropertySymbol { Name: "Length", ContainingType.Name: "FileInfo" } && symbol.IsSystemIoFile())
+		{
+			// The inline constructor reports this access once, at the original RAI002 location.
+			if (FileInfoLengthAccess.InlineCreation(memberAccess) is not null) return;
+			context.ReportDiagnostic(Diagnostic.Create(
+				DiagnosticDescriptors.ProhibitFileInfoLength, memberAccess.Name.GetLocation()));
+			return;
+		}
 
 		if (symbol is IMethodSymbol or IPropertySymbol or IFieldSymbol && symbol.IsSystemIoFile())
 		{
@@ -81,6 +89,12 @@ public sealed class SystemIoFileAnalyzer : DiagnosticAnalyzer
 
 		if (ctorSymbol.IsSystemIoFile())
 		{
+			if (ctorSymbol.ContainingType.Name == "FileInfo" && FileInfoLengthAccess.FromCreation(creation) is not null)
+			{
+				context.ReportDiagnostic(Diagnostic.Create(
+					DiagnosticDescriptors.ProhibitFileInfoLength, creation.Type.GetLocation()));
+				return;
+			}
 			var diagnostic = Diagnostic.Create(
 				DiagnosticDescriptors.ProhibitSystemIoFile,
 				creation.Type.GetLocation(),

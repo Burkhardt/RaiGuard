@@ -65,6 +65,16 @@ public static class DiagnosticDescriptors
 		isEnabledByDefault: true,
 		description: "Enforces framework-specific path physics by requiring RaiFile and TextFile abstractions instead of System.IO.File, FileInfo, FileStream, StreamReader, StreamWriter, or ZipFile.");
 
+	public static readonly DiagnosticDescriptor ProhibitFileInfoLength = new(
+		id: "RAI002",
+		title: "Use RaiFile.Length for file size",
+		messageFormat: "'System.IO.FileInfo.Length' is prohibited; use 'RaiFile.Length' instead (file.Length for an existing RaiFile, or new RaiFile(path).Length; size is in bytes)",
+		category: Category,
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true,
+		description: "Read physical file size through RaiFile.Length. Replace new FileInfo(file.FullName).Length with file.Length when file is already a RaiFile, or use new RaiFile(path).Length for a string path.",
+		helpLinkUri: "https://github.com/Burkhardt/RaiGuard/blob/main/ARCHITECTURE_RULES.md#rai002--prohibit-direct-usage-of-systemiofile-fileinfo-file-streams-and-zipfile");
+
 	public static readonly DiagnosticDescriptor ProhibitSystemIoPath = new(
 		id: "RAI003",
 		title: "Prohibit direct usage of System.IO.Path",
@@ -230,7 +240,7 @@ public static class DiagnosticDescriptors
 
 	public static readonly ImmutableArray<RuleCatalogEntry> Catalog = ImmutableArray.Create(
 		new RuleCatalogEntry("RAI001", ProhibitSystemIoDirectory, "Use RaiPath methods (e.g. new RaiPath(path).EnumerateDirectories(), .EnumerateFiles(), .Exists(), .mkdir(), .rmdir())", "OsLib", "CloudSync"),
-		new RuleCatalogEntry("RAI002", ProhibitSystemIoFile, "Use RaiFile or TextFile methods (e.g. new RaiFile(path).Exists(), new RaiFile(path).rm(), new TextFile(path).Read(), new TextFile(path, content))", "OsLib", "CloudSync"),
+		new RuleCatalogEntry("RAI002", ProhibitSystemIoFile, "Use RaiFile or TextFile methods (e.g. file.Length or new RaiFile(path).Length for file size in bytes, new RaiFile(path).Exists(), new RaiFile(path).rm(), new TextFile(path).Read(), new TextFile(path, content))", "OsLib", "CloudSync"),
 		new RuleCatalogEntry("RAI003", ProhibitSystemIoPath, "Use RaiPath or RaiRelPath with operator '/' (e.g. new RaiPath(a) / b), RaiFile.Name, Os.TempDir, or Os.DIR", "OsLib"),
 		new RuleCatalogEntry("RAI004", ProhibitRaiPathWithoutTrailingSlash, "Ensure directory string literals passed to new RaiPath(\"...\") end with '/' or compose segments via operator '/'", "OsLib", "CloudSync"),
 		new RuleCatalogEntry("RAI005", ProhibitPathStringConcatenation, "Use 'dir / subdir' for paths and structured 'new TextFile(dir, name, ext)' or 'new RaiFile(dir, name, ext)' constructors for files", "OsLib"),
