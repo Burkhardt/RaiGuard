@@ -8,12 +8,12 @@ It operates as two complementary deliverables:
 1. **[`RaiGuard.Analyzer`](https://www.nuget.org/packages/RaiGuard.Analyzer)**: Roslyn analyzer and code-fix provider invoked during `dotnet build`, IDE keystrokes (VS Code C# Dev Kit), and CI workflows to emit live warnings and automated quick fixes.
 2. **[`RaiGuard`](https://www.nuget.org/packages/RaiGuard)**: Cross-platform .NET Global Tool CLI (`ToolCommandName=rail`) running anywhere .NET is installed to audit, verify, and automatically refactor source files across repositories.
 
-## Latest Version 4.5.16
+## Latest Version 4.5.17
 
 RAI002 now recommends RaiFile.Length for file sizes and offers a semantic
 Roslyn code fix for inline FileInfo.Length expressions.
 
-Latest release notes: [RaiGuard 4.5.16 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#4516).
+Latest release notes: [RaiGuard 4.5.17 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#4517).
 
 ## Previous Versions
 
@@ -57,7 +57,7 @@ sudo dotnet tool update RaiGuard --tool-path /usr/local/bin
 To enforce guardrails during `dotnet build` and in IDEs, add the analyzer package to your `.csproj` or repository `Directory.Build.props`:
 
 ```xml
-<PackageReference Include="RaiGuard.Analyzer" Version="4.5.16">
+<PackageReference Include="RaiGuard.Analyzer" Version="4.5.17">
   <PrivateAssets>all</PrivateAssets>
   <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 </PackageReference>
