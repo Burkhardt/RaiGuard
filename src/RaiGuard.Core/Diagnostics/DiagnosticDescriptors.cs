@@ -150,20 +150,22 @@ public static class DiagnosticDescriptors
 
 	public static readonly DiagnosticDescriptor ProhibitPitReadModifyWrite = new(
 		id: "RAI011",
-		title: "Prohibit Pit full-snapshot Read-Modify-Write (ExtendWith on projected item)",
-		messageFormat: "Full-snapshot Read-Modify-Write on '{0}' stomps concurrent cloud replica fields and risks ProtectedAttributeException; create a sparse delta ('var delta = new PitItem(id); delta.ExtendWith(patch); pit.Add(delta);') or mutate live properties directly",
+		title: "Prohibit unsafe detached or foreign Pit writes",
+		messageFormat: "Unsafe Pit write of {0}; update the same-owner live item through indexers, SetProperty, Merge or ExtendWith, or submit a fresh sparse delta. Detached full projections can replay unrelated fields and protected metadata.",
 		category: JsonPitCategory,
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true,
-		description: "Enforces CR040 No-Read-Modify-Write Law: never pass a projected PitItem from pit.Get(id) or pit[id] through ExtendWith() back into pit.Add(). Emit minimal sparse PitItem deltas instead.");
+		helpLinkUri: "https://github.com/Burkhardt/RaiGuard/blob/main/ARCHITECTURE_RULES.md#rai011",
+		description: "CR077: same-owner tracked live handles and fresh sparse deltas are supported. Reject detached full projections, proven cross-owner handles and retired lifetimes. Unknown provenance is not evidence of a violation.");
 
 	public static readonly DiagnosticDescriptor ProhibitProtectedPitItemMutation = new(
 		id: "RAI012",
 		title: "Prohibit direct mutation or payload injection of protected PitItem attributes (Id, Modified, Deleted)",
-		messageFormat: "Protected PitItem lifecycle attribute '{0}' must not be mutated directly or injected via 'ExtendWith'; use 'new PitItem(id)', 'pit.Add(item)', 'pit.AddHistorical(item)', or 'pit.Delete(id)'",
+		messageFormat: "Protected PitItem lifecycle attribute '{0}' must not be mutated directly or injected via 'ExtendWith'; update business properties through the live item; use RenameId or Delete for lifecycle transitions. AddHistorical is reserved for genuine historical replay.",
 		category: JsonPitCategory,
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true,
+		helpLinkUri: "https://github.com/Burkhardt/RaiGuard/blob/main/ARCHITECTURE_RULES.md#rai012",
 		description: "Id, Modified, and Deleted are protected lifecycle attributes managed exclusively by JsonPit. Mutating them directly or injecting them in client payloads throws ProtectedAttributeException or TombstoneException.");
 
 	public static readonly DiagnosticDescriptor ProhibitPitDirExistsAndReloadHazards = new(
@@ -250,7 +252,7 @@ public static class DiagnosticDescriptors
 		new RuleCatalogEntry("RAI009", ProhibitInvertedCopyMoveReceiver, "Place the destination as receiver and source as argument: destination.cp(source) / destination.mv(source)", "OsLib"),
 		new RuleCatalogEntry("RAI010", EnforceWhitespaceFormatting, "Indent code with tabs ('\\t') and use single spaces between tokens", "Formatting"),
 		new RuleCatalogEntry("RAI011", ProhibitPitReadModifyWrite, "Create a minimal sparse delta ('var delta = new PitItem(id); delta.ExtendWith(patch); pit.Add(delta);') or mutate live properties directly ('pit[id][\"Prop\"] = val; pit.Save();')", "JsonPit", "CloudSync"),
-		new RuleCatalogEntry("RAI012", ProhibitProtectedPitItemMutation, "Do not set or pass Id, Modified, or Deleted in client payloads; use new PitItem(id), pit.Add(item), pit.AddHistorical(item), or pit.Delete(id)", "JsonPit"),
+		new RuleCatalogEntry("RAI012", ProhibitProtectedPitItemMutation, "Update business fields through the live item; use RenameId or Delete for lifecycle transitions. Historical replay is not a client-validation workaround", "JsonPit"),
 		new RuleCatalogEntry("RAI013", ProhibitPitDirExistsAndReloadHazards, "Use pit.JsonFile.Path.Exists() instead of pit.PitDir.Exists(), and use pit.Load() instead of pit.Reload() for pure disk reloads", "JsonPit", "CloudSync", "CliCommand"),
 		new RuleCatalogEntry("RAI014", EnforcePitInstanceDisposal, "Wrap local Pit instances in 'using var pit = new Pit(...)' and call '_pit?.Dispose()' in IDisposable.Dispose()", "JsonPit", "CloudSync"),
 		new RuleCatalogEntry("RAI015", ProhibitInvalidPitIdAndUnsafeJsonParse, "Pass concrete validated IDs (without '{' or '<') to PitItem, and parse JSON with DateParseHandling.None (PitJson / RaidJson5)", "JsonPit"),

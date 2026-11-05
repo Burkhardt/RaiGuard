@@ -587,6 +587,9 @@ public class Sample
         var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
         File.WriteAllText(tempFile, @"
 using System;
+using JsonPit;
+using Newtonsoft.Json.Linq;
+using OsLib;
 
 public class Sample
 {
@@ -598,8 +601,8 @@ public class Sample
 		Environment.SetEnvironmentVariable(""Cloud__Root"", ""/tmp"");
 		sourceFile.cp(destFile);
 
-		var existing = activityPit.Get(""Sipho"");
-		existing.ExtendWith(new JObject { [""Id""] = ""Sipho"" });
+		var existing = activityPit.GetAt(""Sipho"", DateTimeOffset.UtcNow);
+		existing.ExtendWith(new JObject { [""Modified""] = ""bad"" });
 		activityPit.Add(existing);
 
 		if (activityPit.PitDir.Exists())

@@ -101,12 +101,12 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 		context.EnableConcurrentExecution();
 
-		context.RegisterSyntaxTreeAction(AnalyzeSyntaxTreeContext);
+		context.RegisterSemanticModelAction(AnalyzeSemanticContext);
 	}
 
-	private static void AnalyzeSyntaxTreeContext(SyntaxTreeAnalysisContext context)
+	private static void AnalyzeSemanticContext(SemanticModelAnalysisContext context)
 	{
-		var findings = AnalyzeSyntaxRoot(context.Tree, ruleFilter: null, includeSystemIoAndFormatting: false);
+		var findings = AnalyzeSyntaxRoot(context.SemanticModel.SyntaxTree, ruleFilter: null, includeSystemIoAndFormatting: false, semanticModel: context.SemanticModel);
 		foreach (var finding in findings)
 		{
 			context.ReportDiagnostic(Diagnostic.Create(
@@ -120,7 +120,8 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 		SyntaxTree tree,
 		string? ruleFilter = null,
 		bool includeSystemIoAndFormatting = true,
-		string? groupFilter = null)
+		string? groupFilter = null,
+		SemanticModel? semanticModel = null)
 	{
 		var findings = new List<SyntaxDiagnosticFinding>();
 		var root = tree.GetRoot();
@@ -341,39 +342,6 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 				}
 			}
 
-			// RAI012: Protected PitItem attributes in ExtendWith / SetProperty / DeleteProperty
-			if (MatchesRule("RAI012"))
-			{
-				if (methodName == "ExtendWith" && args.Count >= 1)
-				{
-					foreach (var init in args[0].Expression.DescendantNodesAndSelf().OfType<InitializerExpressionSyntax>())
-					{
-						foreach (var expr in init.Expressions)
-						{
-							var key = ExtractInitializerPropertyKey(expr);
-							if (key is "Id" or "Modified" or "Deleted")
-							{
-								AddFinding(
-									DiagnosticDescriptors.ProhibitProtectedPitItemMutation,
-									expr.GetLocation(),
-									key);
-							}
-						}
-					}
-				}
-				else if (methodName is "SetProperty" or "DeleteProperty" or "DeletePropertyPath" && args.Count >= 1)
-				{
-					var key = ExtractProtectedAttributeArgument(args[0].Expression);
-					if (key is "Id" or "Modified" or "Deleted")
-					{
-						AddFinding(
-							DiagnosticDescriptors.ProhibitProtectedPitItemMutation,
-							args[0].GetLocation(),
-							key);
-					}
-				}
-			}
-
 			// RAI013: pit.PitDir.Exists() side effect and pit.Reload() hazard
 			if (MatchesRule("RAI013"))
 			{
@@ -406,43 +374,10 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			}
 		}
 
-		// 5. Direct Assignment to Protected PitItem Attributes (RAI012)
-		if (MatchesRule("RAI012"))
-		{
-			foreach (var assign in root.DescendantNodes().OfType<AssignmentExpressionSyntax>())
-			{
-				if (assign.Parent is InitializerExpressionSyntax)
-				{
-					continue;
-				}
-
-				if (assign.Left is MemberAccessExpressionSyntax propAccess)
-				{
-					var propName = propAccess.Name.Identifier.Text;
-					if (propName is "Modified" or "Deleted" && IsLikelyPitItemReceiver(propAccess.Expression))
-					{
-						AddFinding(
-							DiagnosticDescriptors.ProhibitProtectedPitItemMutation,
-							propAccess.Name.GetLocation(),
-							propName);
-					}
-				}
-				else if (assign.Left is ElementAccessExpressionSyntax elemAccess &&
-					elemAccess.ArgumentList.Arguments.Count == 1 &&
-					elemAccess.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax keyLit &&
-					keyLit.IsKind(SyntaxKind.StringLiteralExpression))
-				{
-					var key = keyLit.Token.ValueText;
-					if (key is "Modified" or "Deleted" && IsLikelyPitItemReceiver(elemAccess.Expression))
-					{
-						AddFinding(
-							DiagnosticDescriptors.ProhibitProtectedPitItemMutation,
-							keyLit.GetLocation(),
-							key);
-					}
-				}
-			}
-		}
+		// CR077: mutation rules need resolved types and chronological provenance.
+		// Syntax-only callers cannot prove JsonPit receiver or handle ownership.
+		if (semanticModel != null)
+			new PitMutationAnalysis(semanticModel, MatchesRule, AddFinding).Analyze(root);
 
 		// 6. Member Access Conventions (RAI016: RaiImage.WordCase, RaiImage.StringHelper, ImageNamingConvention.Legacy)
 		if (MatchesRule("RAI016"))
@@ -556,12 +491,6 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 				continue;
 			}
 
-			// RAI011: Full-snapshot Read-Modify-Write on Pit
-			if (matchesRule("RAI011"))
-			{
-				AnalyzeMethodPitReadModifyWrite(methodBody, addFinding);
-			}
-
 			// RAI014 (Part 1): Local new Pit(...) without using or Dispose()
 			if (matchesRule("RAI014"))
 			{
@@ -652,117 +581,6 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 								$"Moving temporary file '{srcText}' via '{ma.Expression}.mv({srcText})' violates the Cloud-Storage In-Place Invariant (CR022) and throws RaiCloudStorageException on cloud paths; use '{ma.Expression}.cp({srcText}); {srcText}.rm();' instead"
 							});
 					}
-				}
-			}
-		}
-	}
-
-	private static void AnalyzeMethodPitReadModifyWrite(
-		BlockSyntax methodBody,
-		Action<DiagnosticDescriptor, Location, object[]> addFinding)
-	{
-		var freshPitItems = new HashSet<string>(StringComparer.Ordinal);
-		var projectedPitItems = new HashSet<string>(StringComparer.Ordinal);
-		var parameterPitItems = new HashSet<string>(StringComparer.Ordinal);
-		var extendedVariables = new HashSet<string>(StringComparer.Ordinal);
-
-		if (methodBody.Parent is BaseMethodDeclarationSyntax baseMethod)
-		{
-			foreach (var param in baseMethod.ParameterList.Parameters)
-			{
-				if (param.Type != null && GetSimpleTypeName(param.Type) == "PitItem")
-				{
-					parameterPitItems.Add(param.Identifier.Text);
-				}
-			}
-		}
-
-		foreach (var decl in methodBody.DescendantNodes().OfType<VariableDeclaratorSyntax>())
-		{
-			var varName = decl.Identifier.Text;
-			var initExpr = decl.Initializer?.Value;
-			if (initExpr is null)
-			{
-				continue;
-			}
-
-			var declaredType = (decl.Parent as VariableDeclarationSyntax)?.Type;
-			if (IsFreshPitItemCreation(initExpr, declaredType) ||
-				(initExpr is IdentifierNameSyntax srcFresh && freshPitItems.Contains(srcFresh.Identifier.Text)))
-			{
-				freshPitItems.Add(varName);
-			}
-			else if (IsProjectedPitLookup(initExpr) ||
-				(initExpr is IdentifierNameSyntax srcProj && projectedPitItems.Contains(srcProj.Identifier.Text)))
-			{
-				projectedPitItems.Add(varName);
-			}
-		}
-
-		foreach (var assign in methodBody.DescendantNodes().OfType<AssignmentExpressionSyntax>())
-		{
-			if (assign.Left is IdentifierNameSyntax id)
-			{
-				var varName = id.Identifier.Text;
-				if (IsFreshPitItemCreation(assign.Right, declaredType: null) ||
-					(assign.Right is IdentifierNameSyntax srcFresh && freshPitItems.Contains(srcFresh.Identifier.Text)))
-				{
-					freshPitItems.Add(varName);
-					projectedPitItems.Remove(varName);
-				}
-				else if (IsProjectedPitLookup(assign.Right) ||
-					(assign.Right is IdentifierNameSyntax srcProj && projectedPitItems.Contains(srcProj.Identifier.Text)))
-				{
-					projectedPitItems.Add(varName);
-					freshPitItems.Remove(varName);
-				}
-			}
-		}
-
-		foreach (var inv in methodBody.DescendantNodes().OfType<InvocationExpressionSyntax>())
-		{
-			if (inv.Expression is MemberAccessExpressionSyntax ma &&
-				ma.Name.Identifier.Text == "ExtendWith" &&
-				ma.Expression is IdentifierNameSyntax targetId)
-			{
-				var varName = targetId.Identifier.Text;
-				if (!freshPitItems.Contains(varName))
-				{
-					extendedVariables.Add(varName);
-				}
-			}
-		}
-
-		foreach (var inv in methodBody.DescendantNodes().OfType<InvocationExpressionSyntax>())
-		{
-			if (inv.Expression is not MemberAccessExpressionSyntax ma)
-			{
-				continue;
-			}
-
-			var method = ma.Name.Identifier.Text;
-			if (method == "Add" && inv.ArgumentList.Arguments.Count == 1 && IsLikelyPitReceiver(ma.Expression))
-			{
-				var argExpr = inv.ArgumentList.Arguments[0].Expression;
-				if (argExpr is IdentifierNameSyntax argId)
-				{
-					var varName = argId.Identifier.Text;
-					if (!freshPitItems.Contains(varName) &&
-						(projectedPitItems.Contains(varName) ||
-							(parameterPitItems.Contains(varName) && extendedVariables.Contains(varName))))
-					{
-						addFinding(
-							DiagnosticDescriptors.ProhibitPitReadModifyWrite,
-							inv.GetLocation(),
-							new object[] { varName });
-					}
-				}
-				else if (IsProjectedPitLookup(argExpr))
-				{
-					addFinding(
-						DiagnosticDescriptors.ProhibitPitReadModifyWrite,
-						inv.GetLocation(),
-						new object[] { argExpr.ToString() });
 				}
 			}
 		}
@@ -1276,137 +1094,12 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			name.StartsWith("workingOutput", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static string? ExtractInitializerPropertyKey(ExpressionSyntax expr)
-	{
-		if (expr is AssignmentExpressionSyntax assign)
-		{
-			if (assign.Left is ImplicitElementAccessSyntax implicitElem &&
-				implicitElem.ArgumentList.Arguments.Count == 1 &&
-				implicitElem.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax lit1 &&
-				lit1.IsKind(SyntaxKind.StringLiteralExpression))
-			{
-				return lit1.Token.ValueText;
-			}
-
-			if (assign.Left is ElementAccessExpressionSyntax elem &&
-				elem.ArgumentList.Arguments.Count == 1 &&
-				elem.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax lit2 &&
-				lit2.IsKind(SyntaxKind.StringLiteralExpression))
-			{
-				return lit2.Token.ValueText;
-			}
-
-			if (assign.Left is IdentifierNameSyntax id)
-			{
-				return id.Identifier.Text;
-			}
-		}
-		return null;
-	}
-
-	private static string? ExtractProtectedAttributeArgument(ExpressionSyntax argExpr)
-	{
-		if (argExpr is LiteralExpressionSyntax lit && lit.IsKind(SyntaxKind.StringLiteralExpression))
-		{
-			return lit.Token.ValueText;
-		}
-		if (argExpr is ObjectCreationExpressionSyntax oc &&
-			GetSimpleTypeName(oc.Type) == "JProperty" &&
-			oc.ArgumentList?.Arguments.Count >= 1 &&
-			oc.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax propLit &&
-			propLit.IsKind(SyntaxKind.StringLiteralExpression))
-		{
-			return propLit.Token.ValueText;
-		}
-		return null;
-	}
-
 	private static bool IsLikelyPitReceiver(ExpressionSyntax expr)
 	{
 		var name = ExtractLastIdentifier(expr).TrimStart('_');
 		return name.Equals("pit", StringComparison.OrdinalIgnoreCase) ||
 			name.EndsWith("Pit", StringComparison.Ordinal) ||
 			name is "Person" or "Object" or "Place" or "Activity";
-	}
-
-	private static bool IsLikelyPitItemReceiver(ExpressionSyntax expr)
-	{
-		if (expr is ElementAccessExpressionSyntax elem && IsLikelyPitReceiver(elem.Expression))
-		{
-			return true;
-		}
-		var name = ExtractLastIdentifier(expr);
-		return name.Equals("item", StringComparison.OrdinalIgnoreCase) ||
-			name.EndsWith("Item", StringComparison.Ordinal) ||
-			name.Equals("delta", StringComparison.OrdinalIgnoreCase) ||
-			name.Equals("existing", StringComparison.OrdinalIgnoreCase) ||
-			name.Equals("entry", StringComparison.OrdinalIgnoreCase);
-	}
-
-	private static bool IsFreshPitItemCreation(ExpressionSyntax expr, TypeSyntax? declaredType)
-	{
-		if (expr is ObjectCreationExpressionSyntax oc && GetSimpleTypeName(oc.Type) == "PitItem")
-		{
-			return true;
-		}
-
-		if (expr is ImplicitObjectCreationExpressionSyntax &&
-			declaredType != null &&
-			GetSimpleTypeName(declaredType) == "PitItem")
-		{
-			return true;
-		}
-
-		if (expr is InvocationExpressionSyntax inv &&
-			inv.Expression is MemberAccessExpressionSyntax ma &&
-			ma.Name.Identifier.Text == "Item" &&
-			ExtractLastIdentifier(ma.Expression) == "SparsePayload")
-		{
-			return true;
-		}
-
-		return false;
-	}
-
-	private static bool IsProjectedPitLookup(ExpressionSyntax expr)
-	{
-		if (expr is PostfixUnaryExpressionSyntax postfix &&
-			postfix.IsKind(SyntaxKind.SuppressNullableWarningExpression))
-		{
-			return IsProjectedPitLookup(postfix.Operand);
-		}
-
-		if (expr is ParenthesizedExpressionSyntax paren)
-		{
-			return IsProjectedPitLookup(paren.Expression);
-		}
-
-		if (expr is BinaryExpressionSyntax bin &&
-			bin.IsKind(SyntaxKind.CoalesceExpression))
-		{
-			return IsProjectedPitLookup(bin.Left) || IsProjectedPitLookup(bin.Right);
-		}
-
-		if (expr is ConditionalExpressionSyntax cond)
-		{
-			return IsProjectedPitLookup(cond.WhenTrue) || IsProjectedPitLookup(cond.WhenFalse);
-		}
-
-		if (expr is InvocationExpressionSyntax inv &&
-			inv.Expression is MemberAccessExpressionSyntax ma &&
-			ma.Name.Identifier.Text is "Get" or "GetAt" &&
-			IsLikelyPitReceiver(ma.Expression))
-		{
-			return true;
-		}
-
-		if (expr is ElementAccessExpressionSyntax elem &&
-			IsLikelyPitReceiver(elem.Expression))
-		{
-			return true;
-		}
-
-		return false;
 	}
 
 	private static bool ContainsMediaUrlPattern(string text)

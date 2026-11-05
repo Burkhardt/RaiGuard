@@ -370,10 +370,11 @@ public static class Program
 		}
 
 		var violations = new List<DiagnosticRecord>();
+		var semanticInputs = MutationCompilation.Create(files);
 
 		foreach (var filePath in files)
 		{
-			var fileViolations = AnalyzeFile(filePath, ruleFilter, groupFilter);
+			var fileViolations = AnalyzeFile(filePath, ruleFilter, groupFilter, semanticInputs);
 			violations.AddRange(fileViolations);
 		}
 
@@ -386,13 +387,15 @@ public static class Program
 
 		if (violations.Count == 0)
 		{
-			Messages.WriteSuccess($"{Icons.Success} All guardrails passed. Checked {files.Count} files.");
+			Messages.WriteSuccess($"{Icons.Success} No proven guardrail violations found. Checked {files.Count} files.");
 			return 0;
 		}
 
 		foreach (var v in violations)
 		{
 			Messages.WriteWarning($"{Icons.Warning} {v.File}({v.Line},{v.Column}): warning {v.RuleId}: {v.Message}");
+			if (!string.IsNullOrEmpty(v.Suggestion)) Console.WriteLine($"  Suggestion: {v.Suggestion}");
+			if (!string.IsNullOrEmpty(v.Documentation)) Console.WriteLine($"  {v.Documentation}");
 		}
 
 		Console.WriteLine();
@@ -966,11 +969,11 @@ public static class Program
 		}
 	}
 
-	private static List<DiagnosticRecord> AnalyzeFile(string filePath, string? ruleFilter, string? groupFilter = null)
+	private static List<DiagnosticRecord> AnalyzeFile(string filePath, string? ruleFilter, string? groupFilter = null, CSharpCompilation? compilation = null)
 	{
 		var code = File.ReadAllText(filePath);
-		var tree = CSharpSyntaxTree.ParseText(code, path: filePath);
-		var findings = RaiKeepArchitectureAnalyzer.AnalyzeSyntaxRoot(tree, ruleFilter, includeSystemIoAndFormatting: true, groupFilter: groupFilter);
+		var tree = compilation?.SyntaxTrees.FirstOrDefault(t => t.FilePath == filePath) ?? CSharpSyntaxTree.ParseText(code, path: filePath);
+		var findings = RaiKeepArchitectureAnalyzer.AnalyzeSyntaxRoot(tree, ruleFilter, includeSystemIoAndFormatting: true, groupFilter: groupFilter, semanticModel: compilation?.GetSemanticModel(tree));
 
 		return findings
 			.Select(f => new DiagnosticRecord(
@@ -978,7 +981,10 @@ public static class Program
 				Message: f.Message,
 				File: filePath,
 				Line: f.Line,
-				Column: f.Column))
+				Column: f.Column,
+				Severity: f.Descriptor.DefaultSeverity.ToString(),
+				Suggestion: DiagnosticDescriptors.Catalog.FirstOrDefault(r => r.Id == f.RuleId)?.Remediation,
+				Documentation: f.Descriptor.HelpLinkUri))
 			.ToList();
 	}
 
@@ -1053,4 +1059,4 @@ public static class Program
 	}
 }
 
-public sealed record DiagnosticRecord(string RuleId, string Message, string File, int Line, int Column);
+public sealed record DiagnosticRecord(string RuleId, string Message, string File, int Line, int Column, string Severity = "Warning", string? Suggestion = null, string? Documentation = null);

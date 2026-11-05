@@ -21,7 +21,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Fixtures/cr077-sipho-probes.json" CopyToOutputDirectory="PreserveNewest" />
     <Using Include="Xunit" />
+    <ProjectReference Include="../../../JsonPit/JsonPit.csproj" />
   </ItemGroup>
 
   <ItemGroup>

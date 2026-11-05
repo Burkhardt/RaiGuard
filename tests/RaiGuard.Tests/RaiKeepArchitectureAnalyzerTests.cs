@@ -305,10 +305,10 @@ namespace TestNamespace
 	}
 
 	[Fact]
-	public async Task RAI011_WhenPitReadModifyWrite_EmitsDiagnostic()
+	public async Task RAI011_WhenSameOwnerLiveMutation_DoesNotEmitDiagnostic()
 	{
 		var testCode = @"
-namespace TestNamespace
+namespace JsonPit
 {
 	public class PitItem
 	{
@@ -327,7 +327,7 @@ namespace TestNamespace
 		{
 			var existing = activityPit.Get(""Sipho"");
 			existing.ExtendWith(patch);
-			{|#0:activityPit.Add(existing)|};
+			activityPit.Add(existing);
 
 			// Valid sparse delta idiom — no diagnostic
 			var delta = new PitItem(""Sipho"");
@@ -337,12 +337,7 @@ namespace TestNamespace
 	}
 }";
 
-		var expected = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI011")
-			.WithLocation(0)
-			.WithArguments("existing");
-
-		await CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode, expected);
+		await CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode);
 	}
 
 	[Fact]
@@ -351,7 +346,7 @@ namespace TestNamespace
 		var testCode = @"
 using System.Collections.Generic;
 
-namespace TestNamespace
+namespace JsonPit
 {
 	public class PitItem
 	{
@@ -388,12 +383,12 @@ namespace TestNamespace
 	}
 
 	[Fact]
-	public async Task RAI011_WhenParameterOrCoalescedLookupReadModifyWrite_EmitsDiagnostic()
+	public async Task RAI011_WhenUnknownParameterOrSameOwnerLiveLookup_DoesNotEmitDiagnostic()
 	{
 		var testCode = @"
 using System;
 
-namespace TestNamespace
+namespace JsonPit
 {
 	public class PitItem
 	{
@@ -411,28 +406,18 @@ namespace TestNamespace
 		public void Graft(Pit activityPit, PitItem existingActivity, object patch)
 		{
 			existingActivity.ExtendWith(patch);
-			{|#0:activityPit.Add(existingActivity)|};
+			activityPit.Add(existingActivity);
 		}
 
 		public void BindFiller(Pit objectPit, string objectId, object patch)
 		{
 			var obj = objectPit[objectId] ?? throw new InvalidOperationException();
-			{|#1:objectPit.Add(obj)|};
+			objectPit.Add(obj);
 		}
 	}
 }";
 
-		var expected0 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI011")
-			.WithLocation(0)
-			.WithArguments("existingActivity");
-
-		var expected1 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI011")
-			.WithLocation(1)
-			.WithArguments("obj");
-
-		await CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode, expected0, expected1);
+		await CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode);
 	}
 
 	[Fact]
@@ -441,7 +426,7 @@ namespace TestNamespace
 		var testCode = @"
 using System.Collections.Generic;
 
-namespace TestNamespace
+namespace JsonPit
 {
 	public class PitItem
 	{
@@ -454,7 +439,7 @@ namespace TestNamespace
 		{
 			delta.ExtendWith(new Dictionary<string, object>
 			{
-				{|#0:[""Id""] = ""Sipho""|},
+				{|#0:[""Modified""] = ""Sipho""|},
 				[""Role""] = ""Sax""
 			});
 		}
@@ -464,7 +449,7 @@ namespace TestNamespace
 		var expected = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
 			.Diagnostic("RAI012")
 			.WithLocation(0)
-			.WithArguments("Id");
+			.WithArguments("Modified");
 
 		await CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode, expected);
 	}

@@ -1,6 +1,6 @@
 # RaiGuard Architecture Guardrails & Empirical Audit Reference
 
-This document provides the deep-dive engineering rationale behind all **16 RaiGuard rules (`RAI001`–`RAI016`)**, their organization into **6 overlapping Rule Group Sets**, why mainstream .NET and LLM-trained patterns conflict with the cloud-replicated, object-oriented physics of the **RAIkeep** framework (`OsLib`, `JsonPit`, `RaiUtils`, `RaiImage`, `RaiDiagram`), and the empirical audit findings across `AIA`, `AfricaStage`, and `RAIkeep`.
+This document provides the deep-dive engineering rationale behind all **17 RaiGuard rules (`RAI001`–`RAI017`)**, their organization into **6 overlapping Rule Group Sets**, why mainstream .NET and LLM-trained patterns conflict with the cloud-replicated, object-oriented physics of the **RAIkeep** framework (`OsLib`, `JsonPit`, `RaiUtils`, `RaiImage`, `RaiDiagram`), and the empirical audit findings across `AIA`, `AfricaStage`, and `RAIkeep`.
 
 ---
 
@@ -224,51 +224,70 @@ Rules are numbered continuously (`RAI001`–`RAI016`) with no gaps, while **Rule
 
 ---
 
-### `RAI011` — Prohibit `Pit` Full-Snapshot Read-Modify-Write (`CR040`)
-- **Groups**: `JsonPit`, `CloudSync`
-- **Why Mainstream LLMs Fail**: LLMs treat `pit.Get(id)` or `pit[id]` like a standard document-store CRUD cycle: read the existing item, call `existing.ExtendWith(patch)`, and pass the entire projected item back to `pit.Add(existing)`.
-- **Why It Breaks RAIkeep**: In `JsonPit`, `pit.Get(id)` returns a projected snapshot of all historical properties. Calling `existing.ExtendWith(patch)` and `pit.Add(existing)` writes **every** old property back into a new timestamped delta entry—stamping a newer `Modified` timestamp on untouched fields and silently overwriting concurrent edits synced from other cloud servers (`CR040`).
-- **Before (Prohibited)**:
-  ```csharp
-  var existing = pit.Get(id);
-  existing.ExtendWith(patch);
-  pit.Add(existing); // Stamps ALL old properties of 'existing' as newly modified!
-  pit.Save();
-  ```
-- **After (Idiomatic RAIkeep)**:
-  ```csharp
-  // Option A: Sparse delta write (only patched fields are recorded in the delta)
-  var delta = new PitItem(id);
-  delta.ExtendWith(patch);
-  pit.Add(delta);
-  pit.Save();
+<a id="rai011"></a>
+### `RAI011` — Unsafe detached or foreign Pit writes (CR077)
 
-  // Or via a one-line sparse helper that strips protected envelope keys (e.g. AIA's SparsePayload.Item):
-  pit.Add(SparsePayload.Item(id, patch));
+Groups: `JsonPit`, `CloudSync`.
 
-  // Option B: Live reference property mutation (CR033)
-  var item = pit.Get(id);
-  item["Status"] = "Confirmed";
-  pit.Save();
-  ```
-- **Scope**: Fires only when the added item is provably a Pit projection (`pit.Get(id)`, `pit[id]`, `pit[id]!`, `pit[id] ?? throw …`, or an extended `PitItem` parameter). Freshly minted items (`new PitItem(...)`, `SparsePayload.Item(...)`, loops over locally generated collections) are never flagged. To relax the rule in test fixtures, see [INTEGRATION_GUIDE.md — Relaxing `RAI011` in Test Projects](INTEGRATION_GUIDE.md#relaxing-rai011-in-test-projects).
+The current indexer and ordinary `Get` return tracked live handles. Indexing,
+SetProperty, Merge and ExtendWith on those handles emit sparse history; re-adding
+a same-owner live handle is a supported boundary flush. It is not evidence of a
+full-snapshot overwrite. Fresh explicit deltas and ordinary List/HashSet/JArray
+operations are valid too.
 
----
+A detached historical projection is different:
 
-### `RAI012` — Prohibit Direct Mutation of Protected `PitItem` Lifecycle Attributes (`Id`, `Modified`, `Deleted`)
-- **Groups**: `JsonPit`
-- **Why Mainstream LLMs Fail**: LLMs set `item["Id"] = id`, `item["Deleted"] = true`, `item["Modified"] = DateTimeOffset.UtcNow`, or pass a `JObject` containing `"Id"`, `"Modified"`, or `"Deleted"` into `item.ExtendWith(payload)`.
-- **Why It Breaks RAIkeep**: `Id`, `Modified`, and `Deleted` are protected temporal-merge lifecycle attributes managed exclusively by `PitItem` (`JsonPit/PitItem.cs:27-33`). Direct indexer mutation or `ExtendWith` injection throws `InvalidOperationException` at runtime or corrupts tombstone history.
-- **Before (Prohibited)**:
-  ```csharp
-  item["Deleted"] = true;
-  item.ExtendWith(new JObject { ["Id"] = id, ["Title"] = title });
-  ```
-- **After (Idiomatic RAIkeep)**:
-  ```csharp
-  item.Delete(); // Or item.Undel()
-  item.ExtendWith(new JObject { ["Title"] = title });
-  ```
+```csharp
+var snapshot = pit.GetAt(id, timestamp);
+pit.Add(snapshot); // RAI011: historical metadata and unrelated fields are not a client delta
+```
+
+Use the ordinary object model:
+
+```csharp
+var item = pit[id];
+item["Status"] = "Confirmed";
+item.SetProperty(new { Location = "Main stage", Notes = "Ready" });
+item.DeleteProperty("TemporaryNote");
+pit.Save();
+```
+
+The semantic analyzer follows aliases, casts, chronological assignments, scoped
+symbols, collections, and bounded source-helper summaries. It reports proven
+unsafe detached writes, cross-owner live writes when distinct owners are proven,
+and retired handle writes. Unknown provenance does not establish a violation.
+A later assignment cannot retroactively change an earlier write. It never infers
+Pit types from variable names. Historical replay remains explicit and is not an
+application workaround for protected metadata errors.
+
+Source-helper summaries are bounded to four calls within one syntax tree. Loops
+use bounded analysis and joins; arbitrary reflection, callbacks and unresolved
+external helpers are not a complete proof of safety. `rail check` shares the
+engine with the compiler analyzer and reports incomplete reference resolution on
+stderr. Restore/build the actual project and use compiler diagnostics for its
+full reference context.
+
+<a id="rai012"></a>
+### `RAI012` — Protected PitItem lifecycle attributes
+
+Group: `JsonPit`.
+
+Resolve the actual item type or tracked provenance before diagnosing direct
+assignments and explicit mutation/deletion payloads. Id, Modified and Deleted are
+engine-owned. A matching Id assertion in a patch is supported; an unknown Id
+relationship is not proof of a mismatch. Do not flag unrelated JSON transforms.
+
+```csharp
+var item = pit[id];
+item["Modified"] = DateTimeOffset.UtcNow; // prohibited
+item.ExtendWith(new JObject { ["Modified"] = "manual", ["Title"] = title }); // rejected atomically
+```
+
+Update the business fields instead. Use `RenameId`, `Pit.Delete` or the live
+item's `Delete` for lifecycle transitions. `Remove`/DeleteProperty on ordinary
+tracked properties is valid and emits the appropriate tombstone; there is no
+blanket prohibition on removal. Genuine historical replay uses AddHistorical,
+not as a way around client validation.
 
 ---
 
@@ -392,7 +411,7 @@ Running `rail check` across the two internal production repositories (`../../AIA
 | **`RAI008`** | `OsLib`, `CloudSync`, `JsonPit`, `RaiMedia` | 0 | 0 | Enforced preventatively (`CR022` cloud-storage in-place write invariant) |
 | **`RAI009`** | `OsLib` | 0 | 0 | Enforced preventatively (`dest.cp(source)` / `dest.mv(source)` receiver order) |
 | **`RAI010`** | `Formatting` | 575 | 7,482 | Space indentation across `AIA` and `AfricaStage` (auto-fixable via `rail fix --rule RAI010` or `rail fix --group Formatting`) |
-| **`RAI011`** | `JsonPit`, `CloudSync` | 34 | 44 | `AIA`: `ExternalAcceptance.cs:198,219,244`, `ObjectInstantiator.cs:262`, `OpmConditionMigrator.cs:122`, `ConversationalAuthoring.cs:399`; `AfricaStage`: 14 in `ActivityController.cs`, `ObjectController.cs:815`, `SystemMethodExecutor.cs:197` (`existing.ExtendWith(patch); pit.Add(existing);` full-snapshot overwrites!) |
+| **`RAI011`** | `JsonPit`, `CloudSync` | 34 | 44 | `AIA`: `ExternalAcceptance.cs:198,219,244`, `ObjectInstantiator.cs:262`, `OpmConditionMigrator.cs:122`, `ConversationalAuthoring.cs:399`; `AfricaStage`: 14 in `ActivityController.cs`, `ObjectController.cs:815`, `SystemMethodExecutor.cs:197` (historical analyzer observations; CR077 reclassifies same-owner tracked live operations as supported) |
 | **`RAI012`** | `JsonPit` | 15 | 36 | `AfricaStage`: `OpmReasoner.cs:272` (`["Id"] = id` inside `ExtendWith`), `ChatTranscript.cs:75` (`new JObject { ["Id"] = ... }` passed to `ExtendWith`) |
 | **`RAI013`** | `JsonPit`, `CloudSync`, `CliCommand` | 0 | 0 | Preventative guard for `pit.PitDir.Exists()` `mkdir()` side-effect and `pit.Reload()` overwrite hazard (see `AfricaStage/Services/PitReloadService.cs:50-57`) |
 | **`RAI014`** | `JsonPit`, `CloudSync` | 122 | 31 | 153 undisposed `new Pit(...)` instances across test suites and helper services leaking `ActiveCanonicalPitPaths` reservations |
