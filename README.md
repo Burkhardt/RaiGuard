@@ -8,11 +8,11 @@ It operates as two complementary deliverables:
 1. **[`RaiGuard.Analyzer`](https://www.nuget.org/packages/RaiGuard.Analyzer)**: Roslyn analyzer and code-fix provider invoked during `dotnet build`, IDE keystrokes (VS Code C# Dev Kit), and CI workflows to emit live warnings and automated quick fixes.
 2. **[`RaiGuard`](https://www.nuget.org/packages/RaiGuard)**: Cross-platform .NET Global Tool CLI (`ToolCommandName=rail`) running anywhere .NET is installed to audit, verify, and automatically refactor source files across repositories.
 
-## Latest Version 4.6.0
+## Latest Version 4.6.1
 
 Show the executing machine as "on <machine>" in the CLI banner. Size both decorative rules to the complete heading, including the hostname; preserve bold cyan styling and plain redirected output. Apply the same heading to the grouped rule display.
 
-Latest release notes: [RaiGuard 4.6.0 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#460).
+Latest release notes: [RaiGuard 4.6.1 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#461).
 
 ## Previous Versions
 
@@ -56,7 +56,7 @@ sudo dotnet tool update RaiGuard --tool-path /usr/local/bin
 To enforce guardrails during `dotnet build` and in IDEs, add the analyzer package to your `.csproj` or repository `Directory.Build.props`:
 
 ```xml
-<PackageReference Include="RaiGuard.Analyzer" Version="4.6.0">
+<PackageReference Include="RaiGuard.Analyzer" Version="4.6.1">
   <PrivateAssets>all</PrivateAssets>
   <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 </PackageReference>
@@ -305,7 +305,7 @@ Rules are numbered continuously (`RAI001`–`RAI017`) and organized into overlap
 | `RAI004` | `OsLib`, `CloudSync` | Warning | `new RaiPath("...")` string literal missing trailing `/` strips last segment as filename | Terminate directory literal with `/` (`new RaiPath("/tmp/dir/")`) or compose segments with `/` (`new RaiPath("/tmp/") / "dir"`) |
 | `RAI005` | `OsLib` | Warning | String concatenation with `Os.DIR` or `"/"` on `RaiPath` produces `//` and bypasses typed constructors | Compose directories with `dir / "sub"` and construct files via `new RaiFile(dir, name, ext)` or `new TextFile(dir, name, ext)` |
 | `RAI006` | `OsLib`, `JsonPit`, `CliCommand`, `RaiMedia` | Warning | Bypassing typed `OsLib` `CliCommand` wrappers via `System.Diagnostics.Process` or raw `new RaiSystem("pits"\|"iorg"\|"raid"\|"amafu", ...)` | Use `PitsCommand`, `IorgCommand`, `RaidCommand`, `AmafuCommand`, or `CliCommand` (preserving `PitsCommand.TargetGates` semaphore serialization) |
-| `RAI007` | `OsLib`, `CloudSync` | Warning | Bypassing sacred `Os.Config` via `Environment.*`, `AppDomain.CurrentDomain.BaseDirectory`, or `Directory.GetCurrentDirectory()` | Read configuration from `Os.Config`, `Os.UserHomeDir`, `Os.TempDir`, or `Os.AppRoot` |
+| `RAI007` | `OsLib`, `CloudSync` | Warning | Bypassing sacred `Os.Config` via `Environment.*`, `AppDomain.CurrentDomain.BaseDirectory`, or `Directory.GetCurrentDirectory()` | Use `Os.RunSwitch` for developer/CI invocation switches; `Os.Config` for persistent machine/storage configuration |
 | `RAI008` | `OsLib`, `CloudSync`, `JsonPit`, `RaiMedia` | Warning | Cloud-storage in-place write invariant (`CR022`) violated (`rm()` before `Save()`/`cp()` or `.mv(tmp)` from temp storage) | Mutate and call `.Save()` or `dest.cp(source)` in-place; for temp staging use `dest.cp(tmp); tmp.rm();` |
 | `RAI009` | `OsLib` | Warning | Inverted `OsLib` `cp` / `mv` receiver order (`source.cp(dest)` instead of `dest.cp(source)`) | Call `dest.cp(source)` or `dest.mv(source)` where the **destination** `RaiFile` is `this` |
 | `RAI010` | `Formatting` | Warning | Tab indentation required and consecutive spaces prohibited | Indent code with tabs (`\t`) and use single spaces between tokens outside string and character literals (`rail fix --rule RAI010`) |
@@ -448,3 +448,11 @@ dotnet pack src/RaiGuard.Package/RaiGuard.Package.csproj -c Release -o ./artifac
 ```
 
 See [BuildFromSource.md](BuildFromSource.md) for full instructions.
+
+## CR070 in 4.6.1
+
+Use `Os.RunSwitch(name)` for disposable developer/CI invocation switches.
+Persistent configuration remains in Os.Config. Deliberate rule-subject tests can
+use `[OsLib.RaiRuleExemption("RAI015", "Default parser coercion is this test's subject.")]`
+on the specific method. No blanket test exclusion, pragma, or editorconfig bypass
+is needed. See the [adoption guide](https://github.com/Burkhardt/RaiGuard/blob/main/INTEGRATION_GUIDE.md#cr070-run-switches-and-explicit-test-subjects).

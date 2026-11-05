@@ -23,7 +23,7 @@ To protect an individual C# project, add `RaiGuard.Analyzer` as a development de
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="RaiGuard.Analyzer" Version="4.5.10">
+  <PackageReference Include="RaiGuard.Analyzer" Version="4.6.1">
     <PrivateAssets>all</PrivateAssets>
     <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
   </PackageReference>
@@ -33,7 +33,7 @@ To protect an individual C# project, add `RaiGuard.Analyzer` as a development de
 Or via the .NET CLI:
 
 ```bash
-dotnet add package RaiGuard.Analyzer --version 4.5.10
+dotnet add package RaiGuard.Analyzer --version 4.6.1
 ```
 
 ### Option B: Solution-Wide Protection via `Directory.Build.props` (Recommended)
@@ -44,7 +44,7 @@ To automatically enforce RaiGuard across all current and future projects in a re
 <Project>
   <!-- Enforce RaiGuard Roslyn guardrails on all projects in this repository -->
   <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
-    <PackageReference Include="RaiGuard.Analyzer" Version="4.5.10">
+    <PackageReference Include="RaiGuard.Analyzer" Version="4.6.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -279,3 +279,21 @@ jobs:
 | **`RAI015`** | `JsonPit` | Warning | Prohibit unexpanded `{...}`/`<...>` placeholders in `PitItem` IDs (`CR049`) and unsafe `JObject.Parse` | Validate IDs before `new PitItem(id)` and parse JSON via `JsonFile` or `JsonReader` with `DateParseHandling.None` |
 | **`RAI016`** | `RaiMedia` | Warning | Enforce `RaiUtils.WordCase` (`CR019`), alphanumeric `DiagramBuilder` `baseItemId` (`CR025`), and `ImageNamingConvention.Structured` | Use `RaiUtils.WordCase`, alphanumeric `baseItemId` without `_UCD`/`_CD` suffixes, and `ImageNamingConvention.Structured` |
 | **`RAI017`** | `RaiMedia` | Warning | Prohibit ad-hoc `/img/` media URL string composition | Use canonical `MediaUrls.Video(...)`, `MediaUrls.Poster(...)`, or `MediaUrls.Image(...)` instead of manual string formatting |
+
+## CR070: run switches and explicit test subjects
+
+Upgrade OsLibCore and RaiGuard.Analyzer to 4.6.1 together. Replace developer/CI
+invocation reads with `Os.RunSwitch(name)`. Keep persistent machine/storage
+configuration in Os.Config, and host-specific test settings in UseSetting.
+
+For a regression that deliberately exercises a rule's hazard, use a narrowly
+scoped declaration rather than a pragma or editorconfig bypass:
+
+```csharp
+[OsLib.RaiRuleExemption("RAI015", "This test demonstrates Newtonsoft's default date coercion.")]
+public void DefaultParserCoercesDates() { /* assertion against the default parser */ }
+```
+
+The reason must be nonblank, and the rule ID is explicit. Unannotated neighboring
+code and all other rules remain checked. Class declarations are supported but
+should be reserved for fixtures whose entire scope has the stated subject.

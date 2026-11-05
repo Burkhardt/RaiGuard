@@ -115,11 +115,12 @@ public static class DiagnosticDescriptors
 	public static readonly DiagnosticDescriptor ProhibitEnvironmentConfigBypass = new(
 		id: "RAI007",
 		title: "Enforce sacred Os.Config runtime configuration over Environment APIs",
-		messageFormat: "'Environment.{0}' bypasses immutable 'Os.Config' runtime configuration; use 'Os.Config', 'Os.TempDir', 'Os.LocalBackupDir', 'Os.UserHomeDir', or 'WebApplicationFactory.UseSetting' instead",
+		messageFormat: "'Environment.{0}' bypasses the configuration contract; use 'Os.RunSwitch' to read developer/CI run-scoped switches, 'Os.Config' for persistent machine/storage configuration, or 'WebApplicationFactory.UseSetting' for host-scoped test settings; do not mutate process-wide environment configuration",
 		category: ArchitectureCategory,
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true,
-		description: "Os.Config (~/.config/RAIkeep.json5) is loaded once per process as the single source of truth for cloud roots and runtime paths. Direct Environment variable mutation or folder resolution is prohibited.");
+		description: "Os.Config (~/.config/RAIkeep.json5) owns persistent machine configuration. Os.RunSwitch reads disposable process-invocation switches without consulting or changing Os.Config. Direct Environment reads must use the appropriate contract; process-wide environment mutation remains prohibited.",
+		helpLinkUri: "https://github.com/Burkhardt/RAIkeep/blob/main/doc/CR070_AIA_to_RAIkeep_RAI007-Test-Run-Switches-and-RAI011-RAI015-Subject-Sites.md");
 
 	public static readonly DiagnosticDescriptor EnforceCloudInPlaceInvariant = new(
 		id: "RAI008",
@@ -247,7 +248,7 @@ public static class DiagnosticDescriptors
 		new RuleCatalogEntry("RAI004", ProhibitRaiPathWithoutTrailingSlash, "Ensure directory string literals passed to new RaiPath(\"...\") end with '/' or compose segments via operator '/'", "OsLib", "CloudSync"),
 		new RuleCatalogEntry("RAI005", ProhibitPathStringConcatenation, "Use 'dir / subdir' for paths and structured 'new TextFile(dir, name, ext)' or 'new RaiFile(dir, name, ext)' constructors for files", "OsLib"),
 		new RuleCatalogEntry("RAI006", ProhibitUntypedProcessExecution, "Use typed OsLib CliCommand wrappers (PitsCommand, IorgCommand, RaidCommand, AmafuCommand, JpitCommand, DenoCommand, RCloneCommand, UnzipCommand)", "OsLib", "JsonPit", "CliCommand", "RaiMedia"),
-		new RuleCatalogEntry("RAI007", ProhibitEnvironmentConfigBypass, "Read runtime paths from Os.Config, Os.TempDir, Os.LocalBackupDir, Os.UserHomeDir, and use WebApplicationFactory.UseSetting in tests", "OsLib", "CloudSync"),
+		new RuleCatalogEntry("RAI007", ProhibitEnvironmentConfigBypass, "Use Os.RunSwitch for developer/CI invocation switches, Os.Config for persistent machine/storage configuration, and WebApplicationFactory.UseSetting for host-scoped settings; do not mutate process-wide environment configuration", "OsLib", "CloudSync"),
 		new RuleCatalogEntry("RAI008", EnforceCloudInPlaceInvariant, "Truncate/overwrite files in-place via TextFile.DeleteAll().Append(...).Save() or dest.cp(tmp); tmp.rm() instead of rm() or mv(tmp)", "OsLib", "CloudSync", "JsonPit", "RaiMedia"),
 		new RuleCatalogEntry("RAI009", ProhibitInvertedCopyMoveReceiver, "Place the destination as receiver and source as argument: destination.cp(source) / destination.mv(source)", "OsLib"),
 		new RuleCatalogEntry("RAI010", EnforceWhitespaceFormatting, "Indent code with tabs ('\\t') and use single spaces between tokens", "Formatting"),

@@ -142,7 +142,8 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			var line = lineSpan.StartLinePosition.Line + 1;
 			var col = lineSpan.StartLinePosition.Character + 1;
 
-			if (suppressions.IsSuppressed(descriptor.Id, location.SourceSpan.Start, line))
+			if (suppressions.IsSuppressed(descriptor.Id, location.SourceSpan.Start, line) ||
+				RuleExemptions.IsExempt(semanticModel, location.SourceSpan.Start, descriptor.Id))
 			{
 				return;
 			}

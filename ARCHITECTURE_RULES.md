@@ -163,6 +163,7 @@ Rules are numbered continuously (`RAI001`–`RAI016`) with no gaps, while **Rule
 - **Groups**: `OsLib`, `CloudSync`
 - **Why Mainstream LLMs Fail**: LLMs read or mutate configuration through `Environment.GetEnvironmentVariable(...)`, `Environment.SetEnvironmentVariable(...)`, `Environment.GetFolderPath(...)`, or `AppDomain.CurrentDomain.BaseDirectory`.
 - **Why It Breaks RAIkeep**: Per `MANIFESTO.md`, `~/.config/RAIkeep.json5` hydrated via `Os.Config` (`Os.UserHomeDir`, `Os.TempDir`, `Os.AppRoot`, `Os.CloudRoot`) is the single sacred source of runtime configuration. Process-wide environment variable mutation causes cross-test and multi-tenant race conditions.
+- **Run-scoped opt-ins (CR070)**: Use `Os.RunSwitch("AIA_LIVE_TENANT_SCAN")` for developer/CI invocation switches. This reads only the process environment; it does not use machine configuration. Process-wide environment writes remain prohibited.
 - **Before (Prohibited)**:
   ```csharp
   var root = Environment.GetEnvironmentVariable("CLOUD_ROOT");
@@ -419,3 +420,27 @@ Running `rail check` across the two internal production repositories (`../../AIA
 | **`RAI016`** | `RaiMedia` | 0 | 0 | Preventative guard for `RaiUtils.WordCase` (`CR019`), `DiagramBuilder` `baseItemId` (`CR025`), and `ImageNamingConvention.Structured` |
 | **`RAI017`** | `RaiMedia` | 5 | 0 | `AIA`: `ActivityController.cs:294,400,494`, `BlueprintController.cs:154,272` (ad-hoc `/img/` string interpolation outside `MediaUrls`) |
 | **Total** | **6 Group Sets** | **880** | **7,768** | Across 108 files in `AIA` and 147 files in `AfricaStage` |
+
+## Declared rule-subject exemptions (CR070 / 4.6.1)
+
+Use an explicit declaration when a test intentionally exercises the hazard itself:
+
+```csharp
+[RaiRuleExemption("RAI015", "The default parser's date coercion is the assertion subject.")]
+public void DefaultParserCoercesDates()
+{
+	Assert.Equal(JTokenType.Date, JObject.Parse(document)["AtUtc"].Type);
+}
+```
+
+The attribute lives in OsLibCore (`using OsLib;`). It applies to one named rule
+inside the annotated method or class, with a nonblank justification. Other rules,
+neighboring methods/classes, and derived classes remain checked. Multiple
+attributes are allowed. Compiler analyzers and semantic rail inspection honor the
+same declaration, including aliases and partial classes. An unrelated attribute
+with the same short name, an unknown rule, or an empty justification grants no
+exemption. No blanket test-assembly exemption is introduced.
+
+Do not replace parser-subject assertions with the safe parser: doing so erases
+the regression's contrast. Ordinary application parsing still uses the safe API.
+A run opt-in should use Os.RunSwitch instead of declaring an RAI007 exemption.
