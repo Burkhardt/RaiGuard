@@ -55,8 +55,8 @@ public static class Messages
 		CliHelpStyle.Row[] rows =
 		[
 			new("Commands:", Icons.Info.ToString(), "check, fix, rules, groups"),
-			new("  rail check [<path>] [--rule <id>] [--group <name>] [--json]", "", ""),
-			new("  rail fix [<path>] [--rule <id>] [--group <name>] [--dry-run]", "", ""),
+			new("  rail check [<path> ...] [--rule <id>] [--group <name>] [--json]", "", ""),
+			new("  rail fix [<path> ...] [--rule <id>] [--group <name>] [--dry-run]", "", ""),
 			new("  rail rules [--rule <id>] [--group <name>] [--groups] [--json]", "", ""),
 			new("  rail groups [--group <name>] [--json]", "", ""),
 			new("Options:", "", ""),
@@ -70,13 +70,16 @@ public static class Messages
 			new("--groups", Icons.Shield.ToString(), "list all rule groups (sets) with their member RAIxxx rules"),
 			new("--json", (Json ? Icons.Success : Icons.NotAvailable).ToString(), "output diagnostics in JSON format"),
 			new("--dry-run", Icons.Info.ToString(), "simulate code fixes without modifying source files on disk"),
+			new("--", Icons.Info.ToString(), "end options; following arguments are source paths"),
+			new("Paths", Icons.Folder.ToString(), "combine positional paths and repeated -p; overlapping files are inspected once"),
+			new("Exit codes", Icons.Info.ToString(), "check: 0 clean, 1 findings, 2 invalid input or incomplete scan (errors on stderr)"),
 			new($"{Icons.Info} Rules", Icons.Shield.ToString(), "RAI001..RAI017 across sets: OsLib, CloudSync, JsonPit, CliCommand, RaiMedia, Formatting")
 		];
 		return CliHelpStyle.Rows(rows, useColor).ToArray();
 	}
 
 	private static string PathDescription() =>
-		!string.IsNullOrWhiteSpace(TargetPath) ? TargetPath : "target file or directory (defaults to current directory)";
+		!string.IsNullOrWhiteSpace(TargetPath) ? TargetPath : "target file or directory; repeat to add targets (default: current directory)";
 
 	private static string RuleDescription() =>
 		!string.IsNullOrWhiteSpace(TargetRule) ? TargetRule : "filter by rule ID (e.g. RAI001, RAI011)";
@@ -125,93 +128,61 @@ public static class Program
 {
 	private const string CliSubscriber = "rail";
 	private const string BannerTitle = "rail - RaiGuard Roslyn Guardrails & Analyzer for the RAIkeep Framework";
-	private static readonly string[] Commands = ["check", "fix", "rules", "groups"];
-	private static readonly string[] SwitchesWithValues = ["-p", "--path", "--rule", "-g", "--group"];
+	public static int Main(string[] args) => Run(args, new SourceFileSystem());
 
-	public static int Main(string[] args)
+	// The filesystem boundary permits deterministic access/race failure tests without
+	// changing permissions or depending on the privileges of the test runner.
+	internal static int Run(string[] args, SourceFileSystem fileSystem)
 	{
-		if (HasOption(args, "-v", "--version"))
+		RailArguments? options = null;
+		var editedFiles = new List<string>();
+		try
 		{
-			Messages.WriteSuccess(GetVersion());
-			return 0;
-		}
-
-		if (HasOption(args, "-h", "--help"))
-		{
-			if (!HasOption(args, "-n", "-l", "--nologo"))
+			options = RailArguments.Parse(args);
+			Messages.Debug = options.Debug;
+			Messages.Banner = !options.NoLogo;
+			Messages.Json = options.Json;
+			Messages.TargetPath = string.Join(", ", options.Paths);
+			Messages.TargetRule = options.Rule;
+			Messages.TargetGroup = options.Group;
+			if (options.Version) { Messages.WriteSuccess(GetVersion()); return 0; }
+			if (options.Help)
 			{
-				Messages.WriteBanner(BannerTitle);
+				if (Messages.Banner && !Messages.Json) Messages.WriteBanner(BannerTitle);
+				Messages.WriteHelp();
+				return 0;
 			}
-			Messages.WriteHelp();
-			return 0;
-		}
+			if (options.Command == "groups" || options.Groups)
+			{
+				if (Messages.Banner && !Messages.Json) Messages.WriteBanner(BannerTitle);
+				return RunGroups(options.Group, options.Json);
+			}
+			if (options.Command == "rules")
+			{
+				if (Messages.Banner && !Messages.Json) Messages.WriteBanner(BannerTitle);
+				return RunRules(options.Rule, options.Group, options.Json);
+			}
 
-		if (args.Length > 0 && Commands.Contains(args[0], StringComparer.OrdinalIgnoreCase))
+			var files = SourceSelection.Resolve(options.Paths, fileSystem);
+			if (Messages.Banner && !Messages.Json) Messages.WriteBanner(BannerTitle);
+			return options.Command == "fix"
+				? RunFix(files, options.Rule, options.Group, options.DryRun, options.Json, fileSystem, editedFiles)
+				: RunCheck(files, options.Rule, options.Group, options.Json, fileSystem);
+		}
+		catch (Exception ex)
 		{
-			return RunCommand(args[0].ToLowerInvariant(), args[1..]);
+			// Scan/repair failures must never be printed as a clean result. In JSON
+			// checks the array is emitted only after a complete successful inspection.
+			Console.Error.WriteLine($"rail: incomplete operation: {ex.Message}");
+			if (editedFiles.Count > 0)
+				Console.Error.WriteLine("rail: files already modified before the failure: " + string.Join(", ", editedFiles));
+			if ((options?.Json ?? RailArguments.RequestsJson(args)) && (options?.Command ?? RailArguments.CommandName(args)) == "check")
+				Console.WriteLine("[]");
+			return 2;
 		}
-
-		return RunMappedArguments(args);
 	}
 
-	public static int RunCommand(string command, string[] args)
-	{
-		Messages.Debug = HasOption(args, "-b", "-d", "--debug");
-		Messages.Banner = !HasOption(args, "-n", "-l", "--nologo");
-		Messages.Json = HasOption(args, "--json");
-		bool dryRun = HasOption(args, "--dry-run");
-		bool listGroups = HasOption(args, "--groups");
-
-		var pathParam = ParamValue(args, "-p", "--path") ?? (command == "groups" ? null : PositionalArg(args));
-		var ruleParam = ParamValue(args, "--rule");
-		var groupParam = ParamValue(args, "-g", "--group") ?? (command == "groups" ? PositionalArg(args) : null);
-
-		Messages.TargetPath = pathParam;
-		Messages.TargetRule = ruleParam;
-		Messages.TargetGroup = groupParam;
-
-		if (Messages.Banner && !Messages.Json)
-		{
-			Messages.WriteBanner(BannerTitle);
-		}
-
-		if (listGroups || command == "groups")
-		{
-			return RunGroups(groupParam, Messages.Json);
-		}
-
-		return command switch
-		{
-			"check" => RunCheck(pathParam, ruleParam, groupParam, Messages.Json),
-			"fix" => RunFix(pathParam, ruleParam, groupParam, dryRun, Messages.Json),
-			"rules" => RunRules(ruleParam, groupParam, Messages.Json),
-			_ => RunUnknownCommand(command)
-		};
-	}
-
-	private static int RunMappedArguments(string[] args)
-	{
-		Messages.Debug = HasOption(args, "-b", "-d", "--debug");
-		Messages.Banner = !HasOption(args, "-n", "-l", "--nologo");
-		Messages.Json = HasOption(args, "--json");
-		bool listGroups = HasOption(args, "--groups");
-
-		var pathParam = ParamValue(args, "-p", "--path") ?? PositionalArg(args);
-		var ruleParam = ParamValue(args, "--rule");
-		var groupParam = ParamValue(args, "-g", "--group");
-
-		if (Messages.Banner && !Messages.Json)
-		{
-			Messages.WriteBanner(BannerTitle);
-		}
-
-		if (listGroups)
-		{
-			return RunGroups(groupParam, Messages.Json);
-		}
-
-		return RunCheck(pathParam, ruleParam, groupParam, Messages.Json);
-	}
+	public static int RunCommand(string command, string[] args) => Main([command, .. args]);
 
 	private static int RunRules(string? ruleFilter, string? groupFilter, bool json)
 	{
@@ -353,9 +324,8 @@ public static class Program
 		yield return line;
 	}
 
-	private static int RunCheck(string? targetPath, string? ruleFilter, string? groupFilter, bool json)
+	private static int RunCheck(IReadOnlyList<string> files, string? ruleFilter, string? groupFilter, bool json, SourceFileSystem fileSystem)
 	{
-		var files = ResolveSourceFiles(targetPath);
 		if (files.Count == 0)
 		{
 			if (json)
@@ -370,7 +340,7 @@ public static class Program
 		}
 
 		var violations = new List<DiagnosticRecord>();
-		var semanticInputs = MutationCompilation.Create(files);
+		var semanticInputs = MutationCompilation.Create(files, fileSystem.ReadAllText);
 
 		foreach (var filePath in files)
 		{
@@ -403,9 +373,8 @@ public static class Program
 		return 1;
 	}
 
-	private static int RunFix(string? targetPath, string? ruleFilter, string? groupFilter, bool dryRun, bool json)
+	private static int RunFix(IReadOnlyList<string> files, string? ruleFilter, string? groupFilter, bool dryRun, bool json, SourceFileSystem fileSystem, List<string> editedFiles)
 	{
-		var files = ResolveSourceFiles(targetPath);
 		if (files.Count == 0)
 		{
 			Messages.WriteWarning($"{Icons.Warning} No C# source files found to fix.");
@@ -417,7 +386,7 @@ public static class Program
 
 		foreach (var filePath in files)
 		{
-			var code = File.ReadAllText(filePath);
+			var code = fileSystem.ReadAllText(filePath);
 
 			// Optional explicit RAI010 tab indentation fix when --rule RAI010 or --group Formatting is passed
 			if (filterSet != null && filterSet.Count == 1 && filterSet.Contains("RAI010"))
@@ -432,7 +401,8 @@ public static class Program
 					}
 					else
 					{
-						File.WriteAllText(filePath, tabFixedCode);
+						fileSystem.WriteAllText(filePath, tabFixedCode);
+						editedFiles.Add(filePath);
 						Messages.WriteSuccess($"{Icons.Check} Fixed {tabFixes} violation(s) in {filePath}");
 					}
 				}
@@ -788,7 +758,8 @@ public static class Program
 				newRoot = AddMediaUsing(newRoot);
 			}
 
-			File.WriteAllText(filePath, newRoot.ToFullString());
+			fileSystem.WriteAllText(filePath, newRoot.ToFullString());
+			editedFiles.Add(filePath);
 			Messages.WriteSuccess($"{Icons.Check} Fixed {rewrites.Count} violation(s) in {filePath}");
 		}
 
@@ -971,8 +942,8 @@ public static class Program
 
 	private static List<DiagnosticRecord> AnalyzeFile(string filePath, string? ruleFilter, string? groupFilter = null, CSharpCompilation? compilation = null)
 	{
-		var code = File.ReadAllText(filePath);
-		var tree = compilation?.SyntaxTrees.FirstOrDefault(t => t.FilePath == filePath) ?? CSharpSyntaxTree.ParseText(code, path: filePath);
+		var tree = compilation?.SyntaxTrees.FirstOrDefault(t => t.FilePath == filePath)
+			?? CSharpSyntaxTree.ParseText(SourceFileSystem.WithPath(filePath, () => File.ReadAllText(filePath)), path: filePath);
 		var findings = RaiKeepArchitectureAnalyzer.AnalyzeSyntaxRoot(tree, ruleFilter, includeSystemIoAndFormatting: true, groupFilter: groupFilter, semanticModel: compilation?.GetSemanticModel(tree));
 
 		return findings
@@ -988,38 +959,6 @@ public static class Program
 			.ToList();
 	}
 
-	private static List<string> ResolveSourceFiles(string? path)
-	{
-		var result = new List<string>();
-		var target = string.IsNullOrWhiteSpace(path) ? Directory.GetCurrentDirectory() : Path.GetFullPath(path);
-
-		if (File.Exists(target) && target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-		{
-			result.Add(target);
-			return result;
-		}
-
-		if (Directory.Exists(target))
-		{
-			foreach (var file in Directory.EnumerateFiles(target, "*.cs", SearchOption.AllDirectories))
-			{
-				if (file.Contains("/obj/") || file.Contains("/bin/") || file.Contains("/.git/"))
-				{
-					continue;
-				}
-				result.Add(file);
-			}
-		}
-
-		return result;
-	}
-
-	private static int RunUnknownCommand(string command)
-	{
-		Messages.WriteError($"Unknown command '{command}'. See 'rail --help'.");
-		return 1;
-	}
-
 	internal static string GetVersion()
 	{
 		var assembly = Assembly.GetEntryAssembly() ?? typeof(Program).Assembly;
@@ -1033,30 +972,6 @@ public static class Program
 		return $"{name} v{version}";
 	}
 
-	private static string? ParamValue(string[] options, params string[] aliases)
-		=> aliases.Select(a => Array.IndexOf(options, a)).Where(i => i >= 0)
-			.Select(i => i + 1 < options.Length && !options[i + 1].StartsWith("-")
-				? options[i + 1]
-				: throw new ArgumentException($"The option '{options[i]}' requires a value."))
-			.FirstOrDefault();
-
-	private static bool HasOption(string[] options, params string[] aliases)
-		=> aliases.Any(options.Contains);
-
-	private static string? PositionalArg(string[] args)
-	{
-		for (int i = 0; i < args.Length; i++)
-		{
-			if (SwitchesWithValues.Contains(args[i]))
-			{
-				i++;
-				continue;
-			}
-			if (args[i].StartsWith("-")) continue;
-			return args[i];
-		}
-		return null;
-	}
 }
 
 public sealed record DiagnosticRecord(string RuleId, string Message, string File, int Line, int Column, string Severity = "Warning", string? Suggestion = null, string? Documentation = null);

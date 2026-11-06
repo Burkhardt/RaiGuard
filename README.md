@@ -8,11 +8,20 @@ It operates as two complementary deliverables:
 1. **[`RaiGuard.Analyzer`](https://www.nuget.org/packages/RaiGuard.Analyzer)**: Roslyn analyzer and code-fix provider invoked during `dotnet build`, IDE keystrokes (VS Code C# Dev Kit), and CI workflows to emit live warnings and automated quick fixes.
 2. **[`RaiGuard`](https://www.nuget.org/packages/RaiGuard)**: Cross-platform .NET Global Tool CLI (`ToolCommandName=rail`) running anywhere .NET is installed to audit, verify, and automatically refactor source files across repositories.
 
-## Latest Version 4.6.1
+## Candidate 4.6.2 — CR078 (consumer acceptance pending)
+
+`rail check`, implicit checks and `rail fix` now select every supplied source
+path, including repeated `-p` / `--path` options. Overlapping inputs are inspected
+once. Invalid or unreadable inputs fail explicitly before fixes can write.
+See the [CR078 implementation report](https://github.com/Burkhardt/RAIkeep/blob/main/doc/RaiGuard_RELEASE_NOTES_4.6.2.md)
+for the exact contract, verification and local candidate instructions. Publication
+remains gated on independent consumer acceptance and Rainer's manual release.
+
+## Latest Version 4.6.2
 
 Show the executing machine as "on <machine>" in the CLI banner. Size both decorative rules to the complete heading, including the hostname; preserve bold cyan styling and plain redirected output. Apply the same heading to the grouped rule display.
 
-Latest release notes: [RaiGuard 4.6.1 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#461).
+Latest release notes: [RaiGuard 4.6.2 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#462).
 
 ## Previous Versions
 
@@ -56,7 +65,7 @@ sudo dotnet tool update RaiGuard --tool-path /usr/local/bin
 To enforce guardrails during `dotnet build` and in IDEs, add the analyzer package to your `.csproj` or repository `Directory.Build.props`:
 
 ```xml
-<PackageReference Include="RaiGuard.Analyzer" Version="4.6.1">
+<PackageReference Include="RaiGuard.Analyzer" Version="4.6.2">
   <PrivateAssets>all</PrivateAssets>
   <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 </PackageReference>
@@ -222,9 +231,9 @@ For the full production design pattern featuring `pitDir.mkdir()`, dynamic multi
 ## CLI Commands & Reference (`rail`)
 
 ```text
-Commands: check, fix, rules
-  rail check [<path>] [--rule <id>] [--json]
-  rail fix [<path>] [--rule <id>] [--dry-run]
+Commands: check, fix, rules, groups
+  rail check [<path> ...] [--rule <id>] [--group <name>] [--json]
+  rail fix [<path> ...] [--rule <id>] [--group <name>] [--dry-run]
   rail rules [--json]
 
 Options:
@@ -232,9 +241,10 @@ Options:
   -v, --version   print version info
   -n, --nologo    do not display the banner
   -b, --debug     enable debug output
-  -p, --path      target file or directory (defaults to current directory)
+  -p, --path      add a target file or directory; repeat as needed (default: current directory)
   --rule          filter by rule ID (e.g. RAI001)
   --json          output diagnostics in JSON format
+  --              end options; following arguments are source paths
   --dry-run       simulate code fixes without modifying source files on disk
 ```
 
@@ -249,6 +259,29 @@ Check a specific project or source file:
 ```bash
 rail check src/MyProject/Services/Storage.cs
 ```
+
+Check every supplied project in one pass, combining positional and repeated path options:
+```bash
+rail check AIA.Core AIA.Api AIA.Core.Test AIA.Api.Test
+rail check src/First -p src/Second --path 'src/Third Project'
+rail check -- --directory-starting-with-a-dash
+```
+
+Repeated targets and overlapping directory roots are deduplicated; the reported
+file count is the complete unique set. Directory expansion excludes `bin`, `obj`
+and `.git`. Options can appear between targets; `--rule` and `--group` values are
+filters, not paths. The implicit form `rail src/First src/Second` also checks all
+supplied paths. Both `check` and `fix` validate every target before analysis or
+source edits. A later execution failure can leave fixes already written; the
+error identifies the failing path and any files already modified.
+
+`check` exit codes: **0** completed with no findings; **1** completed with
+findings; **2** invalid input or incomplete inspection. Missing/unreadable targets,
+unsupported explicit file types, unknown options and missing option values fail
+explicitly. An existing readable directory with no C# files reports that it is
+empty. `check --json` preserves its diagnostic array with no stdout noise; input
+or inspection failures emit `[]`, explain the failure on stderr, and exit 2.
+Always check the process exit code as well as the array.
 
 Check only a specific rule or rule group set:
 ```bash

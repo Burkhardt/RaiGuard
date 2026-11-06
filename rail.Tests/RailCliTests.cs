@@ -5,7 +5,7 @@ using Xunit;
 
 namespace RaiGuard.Tests;
 
-public class RailCliTests
+public partial class RailCliTests
 {
     [Fact]
     public void Version_ReturnsVersionString()

@@ -11,7 +11,7 @@ namespace RaiGuard;
 /// </summary>
 internal static class MutationCompilation
 {
-	internal static CSharpCompilation Create(IReadOnlyList<string> files)
+	internal static CSharpCompilation Create(IReadOnlyList<string> files, Func<string, string>? readSource = null)
 	{
 		var paths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		void Add(string path)
@@ -45,7 +45,7 @@ internal static class MutationCompilation
 		foreach (var path in Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll")) Add(path);
 		Add(typeof(JsonPit.Pit).Assembly.Location);
 		Add(typeof(Newtonsoft.Json.Linq.JObject).Assembly.Location);
-		var trees = files.Select(path => CSharpSyntaxTree.ParseText(File.ReadAllText(path), path: path)).ToList();
+		var trees = files.Select(path => CSharpSyntaxTree.ParseText((readSource ?? File.ReadAllText)(path), path: path)).ToList();
 		var references = paths.Values.Select(path => MetadataReference.CreateFromFile(path));
 		var compilation = CSharpCompilation.Create("RailInspection", trees, references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 		if (compilation.GetDiagnostics().Any(d => d.Severity == DiagnosticSeverity.Error))

@@ -3,7 +3,7 @@
 	<PropertyGroup>
 		<Title>RaiGuard</Title>
 		<Description>Official .NET Global Tool CLI for RaiGuard opinionated Roslyn guardrails. Audits, verifies, and automatically refactors framework physics violations across solutions.</Description>
-		<Version>4.6.1</Version>
+		<Version>4.6.2</Version>
 		<AssemblyVersion>$(Version)</AssemblyVersion>
 		<FileVersion>$(Version)</FileVersion>
 		<InformationalVersion>$(Version)</InformationalVersion>
@@ -17,7 +17,7 @@
 		<RepositoryUrl>https://github.com/Burkhardt/RaiGuard.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PublishRepositoryUrl>true</PublishRepositoryUrl>
-		<PackageReleaseNotes>Show the execution host in CLI banners with rules sized to the complete heading.</PackageReleaseNotes>
+		<PackageReleaseNotes>Inspect all supplied source paths once; reject incomplete inputs before fixes; preserve JSON diagnostics and explicit exit codes (CR078).</PackageReleaseNotes>
 		<OutputType>Exe</OutputType>
 		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
@@ -41,11 +41,11 @@
 		<UseLocalRAIkeepSources Condition="'$(UseLocalRAIkeepSources)' == '' and '$(JsonPitProjectPath)' != '' and '$(OsLibProjectPath)' != '' and '$(RaiUtilsProjectPath)' != '' and '$(RaiImageProjectPath)' != '' and '$(RaiDiagramProjectPath)' != ''">true</UseLocalRAIkeepSources>
 		<UseLocalRAIkeepSources Condition="'$(UseLocalRAIkeepSources)' == ''">false</UseLocalRAIkeepSources>
 
-		<JsonPitPackageVersion Condition="'$(JsonPitPackageVersion)' == ''">4.6.1</JsonPitPackageVersion>
-		<OsLibPackageVersion Condition="'$(OsLibPackageVersion)' == ''">4.6.1</OsLibPackageVersion>
-		<RaiUtilsPackageVersion Condition="'$(RaiUtilsPackageVersion)' == ''">4.6.1</RaiUtilsPackageVersion>
-		<RaiImagePackageVersion Condition="'$(RaiImagePackageVersion)' == ''">4.6.1</RaiImagePackageVersion>
-		<RaiDiagramPackageVersion Condition="'$(RaiDiagramPackageVersion)' == ''">4.6.1</RaiDiagramPackageVersion>
+		<JsonPitPackageVersion Condition="'$(JsonPitPackageVersion)' == ''">4.6.2</JsonPitPackageVersion>
+		<OsLibPackageVersion Condition="'$(OsLibPackageVersion)' == ''">4.6.2</OsLibPackageVersion>
+		<RaiUtilsPackageVersion Condition="'$(RaiUtilsPackageVersion)' == ''">4.6.2</RaiUtilsPackageVersion>
+		<RaiImagePackageVersion Condition="'$(RaiImagePackageVersion)' == ''">4.6.2</RaiImagePackageVersion>
+		<RaiDiagramPackageVersion Condition="'$(RaiDiagramPackageVersion)' == ''">4.6.2</RaiDiagramPackageVersion>
 	</PropertyGroup>
 
 	<ItemGroup>
