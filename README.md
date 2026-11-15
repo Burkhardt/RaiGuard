@@ -17,11 +17,11 @@ See the [CR078 implementation report](https://github.com/Burkhardt/RAIkeep/blob/
 for the exact contract, verification and local candidate instructions. Publication
 remains gated on independent consumer acceptance and Rainer's manual release.
 
-## Latest Version 4.6.3
+## Latest Version 4.6.4
 
 Show the executing machine as "on <machine>" in the CLI banner. Size both decorative rules to the complete heading, including the hostname; preserve bold cyan styling and plain redirected output. Apply the same heading to the grouped rule display.
 
-Latest release notes: [RaiGuard 4.6.3 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#463).
+Latest release notes: [RaiGuard 4.6.4 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#464).
 
 ## Previous Versions
 
@@ -65,7 +65,7 @@ sudo dotnet tool update RaiGuard --tool-path /usr/local/bin
 To enforce guardrails during `dotnet build` and in IDEs, add the analyzer package to your `.csproj` or repository `Directory.Build.props`:
 
 ```xml
-<PackageReference Include="RaiGuard.Analyzer" Version="4.6.3">
+<PackageReference Include="RaiGuard.Analyzer" Version="4.6.4">
   <PrivateAssets>all</PrivateAssets>
   <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 </PackageReference>
@@ -224,7 +224,7 @@ namespace HeatRecord
 
 For the full production design pattern featuring `pitDir.mkdir()`, dynamic multi-year sparse data modeling with `JsonPit`, and zero warnings, see:
 - [`samples/HeatRecord/Program.cs`](samples/HeatRecord/Program.cs)
-- [`samples/HeatRecord/TUTORIAL.md`](samples/HeatRecord/TUTORIAL.md)
+- [`samples/HeatRecord/TUTORIAL.md`](https://github.com/Burkhardt/RaiGuard/blob/main/samples/HeatRecord/TUTORIAL.md)
 
 ---
 
@@ -350,7 +350,7 @@ Rules are numbered continuously (`RAI001`–`RAI017`) and organized into overlap
 | `RAI016` | `RaiMedia` | Warning | Obsolete `RaiImage.WordCase` (`CR019`), non-alphanumeric `DiagramBuilder` `baseItemId` (`CR025`), or non-`Structured` `ImageNamingConvention` | Use `RaiUtils.WordCase`, alphanumeric `baseItemId` without `_UCD`/`_CD` suffixes, and `ImageNamingConvention.Structured` |
 | `RAI017` | `RaiMedia` | Warning | Ad-hoc `/img/` media URL string composition or concatenation | Use canonical `MediaUrls.Video(...)`, `MediaUrls.Poster(...)`, or `MediaUrls.Image(...)` instead of manual formatting |
 
-For detailed *Before vs. After* code comparisons, architectural rationale (`CR019`, `CR022`, `CR025`, `CR033`, `CR040`, `CR049`), and the cross-repository empirical audit report, see [`ARCHITECTURE_RULES.md`](ARCHITECTURE_RULES.md).
+For detailed *Before vs. After* code comparisons, architectural rationale (`CR019`, `CR022`, `CR025`, `CR033`, `CR040`, `CR049`), and the cross-repository empirical audit report, see [`ARCHITECTURE_RULES.md`](https://github.com/Burkhardt/RaiGuard/blob/main/ARCHITECTURE_RULES.md).
 
 ### Idiomatic Platform Patterns
 
@@ -480,7 +480,7 @@ dotnet pack rail/rail.csproj -c Release -o ./artifacts/nuget
 dotnet pack src/RaiGuard.Package/RaiGuard.Package.csproj -c Release -o ./artifacts/nuget
 ```
 
-See [BuildFromSource.md](BuildFromSource.md) for full instructions.
+See [BuildFromSource.md](https://github.com/Burkhardt/RaiGuard/blob/main/BuildFromSource.md) for full instructions.
 
 ## CR070 in 4.6.1
 
