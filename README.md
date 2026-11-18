@@ -1,5 +1,7 @@
 # RaiGuard
 
+[Code signing policy](https://github.com/Burkhardt/RAIkeep/blob/main/README_codesigning.md)
+
 Opinionated Roslyn analyzer, code-fix provider, and `rail` command-line tool enforcing framework physics and conventions across RAIkeep solutions.
 
 RaiGuard prevents LLMs and developers from backsliding into standard .NET Base Class Library (BCL) boilerplate (such as `System.IO.Directory`, `System.IO.File`, `Path.Combine`, or space indentation) when custom RAIkeep platform abstractions (`RaiPath`, `TextFile`, `JsonPit`, tabs) are required.
