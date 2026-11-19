@@ -1,6 +1,6 @@
 # RaiGuard
 
-[Code signing policy](https://github.com/Burkhardt/RAIkeep/blob/main/README_codesigning.md)
+[Code signing policy](https://github.com/Burkhardt/RAIkeep/blob/main/README_codesigning.md) · SignPath Foundation application in preparation; signing is not yet active.
 
 Opinionated Roslyn analyzer, code-fix provider, and `rail` command-line tool enforcing framework physics and conventions across RAIkeep solutions.
 
@@ -19,11 +19,11 @@ See the [CR078 implementation report](https://github.com/Burkhardt/RAIkeep/blob/
 for the exact contract, verification and local candidate instructions. Publication
 remains gated on independent consumer acceptance and Rainer's manual release.
 
-## Latest Version 4.6.5
+## Latest Version 4.6.6
 
 Show the executing machine as "on <machine>" in the CLI banner. Size both decorative rules to the complete heading, including the hostname; preserve bold cyan styling and plain redirected output. Apply the same heading to the grouped rule display.
 
-Latest release notes: [RaiGuard 4.6.5 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#465).
+Latest release notes: [RaiGuard 4.6.6 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#466).
 
 ## Previous Versions
 
@@ -67,7 +67,7 @@ sudo dotnet tool update RaiGuard --tool-path /usr/local/bin
 To enforce guardrails during `dotnet build` and in IDEs, add the analyzer package to your `.csproj` or repository `Directory.Build.props`:
 
 ```xml
-<PackageReference Include="RaiGuard.Analyzer" Version="4.6.5">
+<PackageReference Include="RaiGuard.Analyzer" Version="4.6.6">
   <PrivateAssets>all</PrivateAssets>
   <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 </PackageReference>
