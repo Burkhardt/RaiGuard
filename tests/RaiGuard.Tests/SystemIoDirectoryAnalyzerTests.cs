@@ -8,10 +8,10 @@ namespace RaiGuard.Tests;
 
 public class SystemIoDirectoryAnalyzerTests
 {
-    [Fact]
-    public async Task WhenValidCode_NoDiagnostic()
-    {
-        var testCode = @"
+	[Fact]
+	public async Task WhenValidCode_NoDiagnostic()
+	{
+		var testCode = @"
 namespace TestNamespace
 {
     public class TestClass
@@ -23,13 +23,13 @@ namespace TestNamespace
     }
 }";
 
-        await CSharpAnalyzerVerifier<SystemIoDirectoryAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode);
-    }
+		await CSharpAnalyzerVerifier<SystemIoDirectoryAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode);
+	}
 
-    [Fact]
-    public async Task WhenDirectoryGetFiles_EmitsDiagnostic()
-    {
-        var testCode = @"
+	[Fact]
+	public async Task WhenDirectoryGetFiles_EmitsDiagnostic()
+	{
+		var testCode = @"
 using System.IO;
 
 namespace TestNamespace
@@ -43,11 +43,11 @@ namespace TestNamespace
     }
 }";
 
-        var expected = CSharpAnalyzerVerifier<SystemIoDirectoryAnalyzer, DefaultVerifier>
-            .Diagnostic("RAI001")
-            .WithLocation(0)
-            .WithArguments("GetFiles");
+		var expected = CSharpAnalyzerVerifier<SystemIoDirectoryAnalyzer, DefaultVerifier>
+			.Diagnostic("RAI001")
+			.WithLocation(0)
+			.WithArguments("GetFiles");
 
-        await CSharpAnalyzerVerifier<SystemIoDirectoryAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode, expected);
-    }
+		await CSharpAnalyzerVerifier<SystemIoDirectoryAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode, expected);
+	}
 }

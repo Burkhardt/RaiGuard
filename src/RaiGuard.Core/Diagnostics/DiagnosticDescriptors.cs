@@ -214,6 +214,36 @@ public static class DiagnosticDescriptors
 		isEnabledByDefault: true,
 		description: "Media URLs must be produced by the canonical MediaUrls helper to ensure proper parameterization, zero hardcoded extensions, and encapsulation of storage topology.");
 
+	public static readonly DiagnosticDescriptor ProhibitProcessFlagWriteOutsideWriteClaim = new(
+		id: "RAI018",
+		title: "Only an actual write claim may write a ProcessFlagFile",
+		messageFormat: "{0}",
+		category: JsonPitCategory,
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true,
+		helpLinkUri: "https://github.com/Burkhardt/RaiGuard/blob/main/ARCHITECTURE_RULES.md#rai018",
+		description: "Reading a pit (Load, Reload, Get, GetAt, Contains, enumeration, readonly open) must never write a ProcessFlagFile. Only the write-claim path (TryAcquireMaster from Save/Store/Maintain/MergeChanges) may update the process flag.");
+
+	public static readonly DiagnosticDescriptor EnforceMasterTicketRelease = new(
+		id: "RAI019",
+		title: "The Master ticket must be claimed and returned only through the claim protocol, and released after Save/Store",
+		messageFormat: "{0}",
+		category: JsonPitCategory,
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true,
+		helpLinkUri: "https://github.com/Burkhardt/RaiGuard/blob/main/ARCHITECTURE_RULES.md#rai019",
+		description: "A claimed MasterFlagFile ticket must be returned (ReturnClaim) after Save()/Store(). Writing the ticket outside TryAcquireMaster/ReturnClaim, or an entry point that can claim the ticket but cannot reach ReturnClaim, leaves other servers waiting for the ticket to expire.");
+
+	public static readonly DiagnosticDescriptor WarnChangeFileCleanupAvoided = new(
+		id: "RAI020",
+		title: "Change-file cleanup must not be avoided by a parameter",
+		messageFormat: "Change-file cleanup is avoided: {0}; this is only acceptable in rare, documented situations",
+		category: JsonPitCategory,
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true,
+		helpLinkUri: "https://github.com/Burkhardt/RaiGuard/blob/main/ARCHITECTURE_RULES.md#rai020",
+		description: "Merged change files must be cleaned up by the master. Suppressing cleanup with a parameter, option or ChangeFileCleanupGrace override accumulates change files and slows every reader. Use a declared RaiRuleExemption with a justification in the rare cases where it is intended.");
+
 	public static readonly ImmutableArray<RuleGroup> Groups = ImmutableArray.Create(
 		new RuleGroup(
 			"OsLib",
@@ -222,11 +252,11 @@ public static class DiagnosticDescriptors
 		new RuleGroup(
 			"CloudSync",
 			"Cloud-drive replication invariants (CR022 in-place writes, CR040 sparse deltas, CR033 canonical path reservation, and reload safety)",
-			"RAI001", "RAI002", "RAI004", "RAI007", "RAI008", "RAI011", "RAI013", "RAI014"),
+			"RAI001", "RAI002", "RAI004", "RAI007", "RAI008", "RAI011", "RAI013", "RAI014", "RAI018", "RAI019", "RAI020"),
 		new RuleGroup(
 			"JsonPit",
 			"Open-world sparse Pit and PitItem persistence, temporal merge, protected lifecycle attributes, PitsCommand gates, and DateParseHandling.None",
-			"RAI006", "RAI008", "RAI011", "RAI012", "RAI013", "RAI014", "RAI015"),
+			"RAI006", "RAI008", "RAI011", "RAI012", "RAI013", "RAI014", "RAI015", "RAI018", "RAI019", "RAI020"),
 		new RuleGroup(
 			"CliCommand",
 			"Typed OsLib CLI command execution (PitsCommand, IorgCommand, RaidCommand, AmafuCommand) and external CLI seed reload safety",
@@ -258,7 +288,10 @@ public static class DiagnosticDescriptors
 		new RuleCatalogEntry("RAI014", EnforcePitInstanceDisposal, "Wrap local Pit instances in 'using var pit = new Pit(...)' and call '_pit?.Dispose()' in IDisposable.Dispose()", "JsonPit", "CloudSync"),
 		new RuleCatalogEntry("RAI015", ProhibitInvalidPitIdAndUnsafeJsonParse, "Pass concrete validated IDs (without '{' or '<') to PitItem, and parse JSON with DateParseHandling.None (PitJson / RaidJson5)", "JsonPit"),
 		new RuleCatalogEntry("RAI016", EnforceRaiUtilsAndDiagramConventions, "Use RaiUtils.WordCase, ImageNamingConvention.Structured, and alphanumeric DiagramBuilder baseItemIds without '_' suffixes", "RaiMedia"),
-		new RuleCatalogEntry("RAI017", ProhibitAdHocMediaUrlComposition, "Use canonical 'MediaUrls.Video(...)', 'MediaUrls.Poster(...)', or 'MediaUrls.Image(...)' instead of manual string formatting", "RaiMedia")
+		new RuleCatalogEntry("RAI017", ProhibitAdHocMediaUrlComposition, "Use canonical 'MediaUrls.Video(...)', 'MediaUrls.Poster(...)', or 'MediaUrls.Image(...)' instead of manual string formatting", "RaiMedia"),
+		new RuleCatalogEntry("RAI018", ProhibitProcessFlagWriteOutsideWriteClaim, "Reads must not touch the ProcessFlagFile; only the write-claim path (TryAcquireMaster from Save/Store/Maintain/MergeChanges) may update it", "JsonPit", "CloudSync"),
+		new RuleCatalogEntry("RAI019", EnforceMasterTicketRelease, "Claim the ticket only with TryAcquireMaster and return it with ReturnClaim after Save()/Store(); never write the Master ticket directly", "JsonPit", "CloudSync"),
+		new RuleCatalogEntry("RAI020", WarnChangeFileCleanupAvoided, "Let the master clean up merged change files; use a declared RaiRuleExemption with justification in rare cases", "JsonPit", "CloudSync")
 	);
 
 	public static HashSet<string>? ResolveFilterSet(string? ruleFilter, string? groupFilter)

@@ -73,7 +73,7 @@ public static class Messages
 			new("--", Icons.Info.ToString(), "end options; following arguments are source paths"),
 			new("Paths", Icons.Folder.ToString(), "combine positional paths and repeated -p; overlapping files are inspected once"),
 			new("Exit codes", Icons.Info.ToString(), "check: 0 clean, 1 findings, 2 invalid input or incomplete scan (errors on stderr)"),
-			new($"{Icons.Info} Rules", Icons.Shield.ToString(), "RAI001..RAI017 across sets: OsLib, CloudSync, JsonPit, CliCommand, RaiMedia, Formatting")
+			new($"{Icons.Info} Rules", Icons.Shield.ToString(), "RAI001..RAI020 across sets: OsLib, CloudSync, JsonPit, CliCommand, RaiMedia, Formatting")
 		];
 		return CliHelpStyle.Rows(rows, useColor).ToArray();
 	}
@@ -420,24 +420,28 @@ public static class Program
 			bool allowRai016 = filterSet == null || filterSet.Contains("RAI016");
 			bool allowRai017 = filterSet == null || filterSet.Contains("RAI017");
 
+			var suppressions = SuppressionMap.Build(root);
+			bool Enabled(string id, SyntaxNode node) =>
+				!suppressions.IsSuppressed(id, node.SpanStart, node.GetLocation().GetLineSpan().StartLinePosition.Line + 1);
+
 			var rewrites = root.DescendantNodes()
 				.Where(node =>
 				{
-					if (allowRai017 && node is InterpolatedStringExpressionSyntax interpolated &&
+					if (allowRai017 && Enabled("RAI017", node) && node is InterpolatedStringExpressionSyntax interpolated &&
 						interpolated.Contents.OfType<InterpolatedStringTextSyntax>().Any(t => t.TextToken.ValueText.Contains("/img/") || t.TextToken.ValueText.Contains("api.aia.software/img/")))
 					{
 						return true;
 					}
 					if (node is InvocationExpressionSyntax inv && inv.Expression is MemberAccessExpressionSyntax ma)
 					{
-						if (allowRai001 && RaiKeepArchitectureAnalyzer.IsDirectoryTypeAccess(ma.Expression))
+						if (allowRai001 && Enabled("RAI001", node) && RaiKeepArchitectureAnalyzer.IsDirectoryTypeAccess(ma.Expression))
 						{
 							var method = ma.Name.Identifier.Text;
 							var argCount = inv.ArgumentList.Arguments.Count;
 							return method is "GetDirectories" or "EnumerateDirectories" or "GetFiles" or "EnumerateFiles" && argCount >= 1;
 						}
 
-						if (allowRai002 && RaiKeepArchitectureAnalyzer.IsFileTypeAccess(ma.Expression))
+						if (allowRai002 && Enabled("RAI002", node) && RaiKeepArchitectureAnalyzer.IsFileTypeAccess(ma.Expression))
 						{
 							var method = ma.Name.Identifier.Text;
 							var argCount = inv.ArgumentList.Arguments.Count;
@@ -452,13 +456,13 @@ public static class Program
 							};
 						}
 
-						if (allowRai003 && RaiKeepArchitectureAnalyzer.IsPathTypeAccess(ma.Expression))
+						if (allowRai003 && Enabled("RAI003", node) && RaiKeepArchitectureAnalyzer.IsPathTypeAccess(ma.Expression))
 						{
 							var method = ma.Name.Identifier.Text;
 							return method == "Combine" && inv.ArgumentList.Arguments.Count >= 2;
 						}
 
-						if (allowRai013 &&
+						if (allowRai013 && Enabled("RAI013", node) &&
 							ma.Name.Identifier.Text == "Exists" &&
 							inv.ArgumentList.Arguments.Count == 0 &&
 							ma.Expression is MemberAccessExpressionSyntax innerMa &&
@@ -468,7 +472,7 @@ public static class Program
 						}
 					}
 
-					if (allowRai004 && node is ObjectCreationExpressionSyntax creation)
+					if (allowRai004 && Enabled("RAI004", node) && node is ObjectCreationExpressionSyntax creation)
 					{
 						var typeName = creation.Type is IdentifierNameSyntax id ? id.Identifier.Text : creation.Type.ToString();
 						if (typeName == "RaiPath" &&
@@ -486,7 +490,7 @@ public static class Program
 						}
 					}
 
-					if (allowRai016 && node is MemberAccessExpressionSyntax member &&
+					if (allowRai016 && Enabled("RAI016", node) && node is MemberAccessExpressionSyntax member &&
 						member.ToString() == "ImageNamingConvention.Legacy")
 					{
 						return true;
@@ -783,69 +787,18 @@ public static class Program
 
 	private static (string Code, int Fixes) NormalizeIndentationToTabs(string code)
 	{
-		var sb = new StringBuilder(code.Length);
-		int fixes = 0;
-		int i = 0;
-		bool atLineStart = true;
-
-		while (i < code.Length)
+		var tree = CSharpSyntaxTree.ParseText(code);
+		var text = tree.GetText();
+		var changes = new List<Microsoft.CodeAnalysis.Text.TextChange>();
+		foreach (var finding in RaiKeepArchitectureAnalyzer.AnalyzeSyntaxRoot(tree, "RAI010"))
 		{
-			if (atLineStart)
-			{
-				int indentStart = i;
-				while (i < code.Length && (code[i] == ' ' || code[i] == '\t'))
-				{
-					i++;
-				}
-
-				if (i > indentStart)
-				{
-					var indent = code.Substring(indentStart, i - indentStart);
-					if (indent.Contains(' '))
-					{
-						fixes++;
-						int spaceCount = 0;
-						foreach (char c in indent)
-						{
-							if (c == '\t')
-							{
-								sb.Append('\t');
-								spaceCount = 0;
-							}
-							else if (c == ' ')
-							{
-								spaceCount++;
-								if (spaceCount == 4)
-								{
-									sb.Append('\t');
-									spaceCount = 0;
-								}
-							}
-						}
-						if (spaceCount > 0)
-						{
-							sb.Append('\t');
-						}
-					}
-					else
-					{
-						sb.Append(indent);
-					}
-				}
-				atLineStart = false;
-			}
-			else
-			{
-				char c = code[i++];
-				sb.Append(c);
-				if (c == '\n')
-				{
-					atLineStart = true;
-				}
-			}
+			if (finding.Message != WhitespaceFormattingAnalyzer.TabIndentationMessage) continue;
+			var line = text.Lines[finding.Line - 1];
+			var indentation = new string(line.ToString().TakeWhile(c => c is ' ' or '\t').ToArray());
+			var tabs = string.Join("\t", indentation.Split('\t').Select(spaces => new string('\t', (spaces.Length + 3) / 4)));
+			changes.Add(new(new Microsoft.CodeAnalysis.Text.TextSpan(line.Start, indentation.Length), tabs));
 		}
-
-		return (sb.ToString(), fixes);
+		return (text.WithChanges(changes).ToString(), changes.Count);
 	}
 
 	private static bool HasOsLibUsing(SyntaxNode root)
@@ -943,7 +896,7 @@ public static class Program
 	private static List<DiagnosticRecord> AnalyzeFile(string filePath, string? ruleFilter, string? groupFilter = null, CSharpCompilation? compilation = null)
 	{
 		var tree = compilation?.SyntaxTrees.FirstOrDefault(t => t.FilePath == filePath)
-			?? CSharpSyntaxTree.ParseText(SourceFileSystem.WithPath(filePath, () => File.ReadAllText(filePath)), path: filePath);
+			?? CSharpSyntaxTree.ParseText(SourceFileSystem.WithPath(filePath, () => LocalFileSystem.ReadText(filePath)), path: filePath);
 		var findings = RaiKeepArchitectureAnalyzer.AnalyzeSyntaxRoot(tree, ruleFilter, includeSystemIoAndFormatting: true, groupFilter: groupFilter, semanticModel: compilation?.GetSemanticModel(tree));
 
 		return findings

@@ -93,7 +93,10 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 		DiagnosticDescriptors.EnforcePitInstanceDisposal,
 		DiagnosticDescriptors.ProhibitInvalidPitIdAndUnsafeJsonParse,
 		DiagnosticDescriptors.EnforceRaiUtilsAndDiagramConventions,
-		DiagnosticDescriptors.ProhibitAdHocMediaUrlComposition
+		DiagnosticDescriptors.ProhibitAdHocMediaUrlComposition,
+		DiagnosticDescriptors.ProhibitProcessFlagWriteOutsideWriteClaim,
+		DiagnosticDescriptors.EnforceMasterTicketRelease,
+		DiagnosticDescriptors.WarnChangeFileCleanupAvoided
 	);
 
 	public override void Initialize(AnalysisContext context)
@@ -378,7 +381,10 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 		// CR077: mutation rules need resolved types and chronological provenance.
 		// Syntax-only callers cannot prove JsonPit receiver or handle ownership.
 		if (semanticModel != null)
+		{
 			new PitMutationAnalysis(semanticModel, MatchesRule, AddFinding).Analyze(root);
+			new PitFlagLifecycleAnalysis(semanticModel, MatchesRule, AddFinding).Analyze(root);
+		}
 
 		// 6. Member Access Conventions (RAI016: RaiImage.WordCase, RaiImage.StringHelper, ImageNamingConvention.Legacy)
 		if (MatchesRule("RAI016"))

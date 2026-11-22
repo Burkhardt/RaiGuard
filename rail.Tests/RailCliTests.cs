@@ -2,83 +2,84 @@ using System;
 using System.IO;
 using RaiGuard;
 using Xunit;
+using OsLib;
 
 namespace RaiGuard.Tests;
 
 public partial class RailCliTests
 {
-    [Fact]
-    public void Version_ReturnsVersionString()
-    {
-        var version = Program.GetVersion();
-        Assert.StartsWith("rail v", version);
-    }
+	[Fact]
+	public void Version_ReturnsVersionString()
+	{
+		var version = Program.GetVersion();
+		Assert.StartsWith("rail v", version);
+	}
 
-    [Fact]
-    public void Main_VersionFlag_ReturnsZero()
-    {
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+	[Fact]
+	public void Main_VersionFlag_ReturnsZero()
+	{
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["-v"]);
-            Assert.Equal(0, exitCode);
-            Assert.Contains("rail v", sw.ToString());
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["-v"]);
+			Assert.Equal(0, exitCode);
+			Assert.Contains("rail v", sw.ToString());
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+		}
+	}
 
-    [Fact]
-    public void Main_HelpFlag_ReturnsZero()
-    {
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+	[Fact]
+	public void Main_HelpFlag_ReturnsZero()
+	{
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["-h", "-n"]);
-            Assert.Equal(0, exitCode);
-            Assert.Contains("Commands:", sw.ToString());
-            Assert.Contains("check", sw.ToString());
-            Assert.Contains("fix", sw.ToString());
-            Assert.Contains("rules", sw.ToString());
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["-h", "-n"]);
+			Assert.Equal(0, exitCode);
+			Assert.Contains("Commands:", sw.ToString());
+			Assert.Contains("check", sw.ToString());
+			Assert.Contains("fix", sw.ToString());
+			Assert.Contains("rules", sw.ToString());
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+		}
+	}
 
-    [Fact]
-    public void Main_RulesCommand_ListsRAI001()
-    {
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+	[Fact]
+	public void Main_RulesCommand_ListsRAI001()
+	{
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["rules", "-n"]);
-            Assert.Equal(0, exitCode);
-            Assert.Contains("RAI001", sw.ToString());
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["rules", "-n"]);
+			Assert.Equal(0, exitCode);
+			Assert.Contains("RAI001", sw.ToString());
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+		}
+	}
 
-    [Fact]
-    public void Check_DetectsSystemIoDirectory()
-    {
-        var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
-        File.WriteAllText(tempFile, @"
+	[Fact]
+	public void Check_DetectsSystemIoDirectory()
+	{
+		var tempFile = new RaiFile(new RaiPath(Os.TempDir.FullPath), $"RailTest_{Guid.NewGuid():N}.cs").FullName;
+		new TextFile(tempFile).WriteAllText(@"
 using System;
 using System.IO;
 
@@ -90,25 +91,25 @@ public class Sample
     }
 }");
 
-        try
-        {
-            var exitCode = Program.Main(["check", "-p", tempFile, "-n", "--json"]);
-            Assert.Equal(1, exitCode);
-        }
-        finally
-        {
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["check", "-p", tempFile, "-n", "--json"]);
+			Assert.Equal(1, exitCode);
+		}
+		finally
+		{
+			if (new RaiFile(tempFile).Exists())
+			{
+				new RaiFile(tempFile).rm();
+			}
+		}
+	}
 
-    [Fact]
-    public void Fix_RewritesDirectoryToRaiPath()
-    {
-        var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
-        File.WriteAllText(tempFile, @"
+	[Fact]
+	public void Fix_RewritesDirectoryToRaiPath()
+	{
+		var tempFile = new RaiFile(new RaiPath(Os.TempDir.FullPath), $"RailTest_{Guid.NewGuid():N}.cs").FullName;
+		new TextFile(tempFile).WriteAllText(@"
 using System;
 using System.IO;
 
@@ -120,29 +121,29 @@ public class Sample
     }
 }");
 
-        try
-        {
-            var exitCode = Program.Main(["fix", "-p", tempFile, "-n"]);
-            Assert.Equal(0, exitCode);
+		try
+		{
+			var exitCode = Program.Main(["fix", "-p", tempFile, "-n"]);
+			Assert.Equal(0, exitCode);
 
-            var updated = File.ReadAllText(tempFile);
-            Assert.Contains("new RaiPath(\".\").EnumerateFiles()", updated);
-            Assert.DoesNotContain("Directory.GetFiles", updated);
-        }
-        finally
-        {
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
-        }
-    }
+			var updated = new TextFile(tempFile).ReadAllText();
+			Assert.Contains("new RaiPath(\".\").EnumerateFiles()", updated);
+			Assert.DoesNotContain("Directory.GetFiles", updated);
+		}
+		finally
+		{
+			if (new RaiFile(tempFile).Exists())
+			{
+				new RaiFile(tempFile).rm();
+			}
+		}
+	}
 
-    [Fact]
-    public void FixCommand_RewritesFluentDirectoryEnumerateDirectories_WithoutCollapsingChain()
-    {
-        var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
-        var originalCode = @"
+	[Fact]
+	public void FixCommand_RewritesFluentDirectoryEnumerateDirectories_WithoutCollapsingChain()
+	{
+		var tempFile = new RaiFile(new RaiPath(Os.TempDir.FullPath), $"RailTest_{Guid.NewGuid():N}.cs").FullName;
+		var originalCode = @"
 using System;
 using System.IO;
 using System.Collections.Generic;
@@ -160,81 +161,81 @@ public class TestQuartets
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToList();
 }";
-        File.WriteAllText(tempFile, originalCode);
+		new TextFile(tempFile).WriteAllText(originalCode);
 
-        try
-        {
-            var exitCode = Program.Main(["fix", "-p", tempFile, "-n"]);
-            Assert.Equal(0, exitCode);
+		try
+		{
+			var exitCode = Program.Main(["fix", "-p", tempFile, "-n"]);
+			Assert.Equal(0, exitCode);
 
-            var updated = File.ReadAllText(tempFile);
-            Assert.Contains("new RaiPath(Root.ToString()).EnumerateDirectories()", updated);
-            Assert.Contains(".Select(Path.GetFileName)", updated);
-            Assert.Contains(".Where(name => name is not null && Exists(name))", updated);
-            Assert.Contains(".Select(name => name!)", updated);
-            Assert.Contains(".OrderBy(name => name, StringComparer.Ordinal)", updated);
-            Assert.Contains(".ToList()", updated);
-            Assert.DoesNotContain("Directory.EnumerateDirectories", updated);
-            Assert.DoesNotContain("RaiPath.ToList()", updated);
-        }
-        finally
-        {
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
-        }
-    }
+			var updated = new TextFile(tempFile).ReadAllText();
+			Assert.Contains("new RaiPath(Root.ToString()).EnumerateDirectories()", updated);
+			Assert.Contains(".Select(Path.GetFileName)", updated);
+			Assert.Contains(".Where(name => name is not null && Exists(name))", updated);
+			Assert.Contains(".Select(name => name!)", updated);
+			Assert.Contains(".OrderBy(name => name, StringComparer.Ordinal)", updated);
+			Assert.Contains(".ToList()", updated);
+			Assert.DoesNotContain("Directory.EnumerateDirectories", updated);
+			Assert.DoesNotContain("RaiPath.ToList()", updated);
+		}
+		finally
+		{
+			if (new RaiFile(tempFile).Exists())
+			{
+				new RaiFile(tempFile).rm();
+			}
+		}
+	}
 
-    [Fact]
-    public void Main_RulesCommand_ListsRAI002()
-    {
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+	[Fact]
+	public void Main_RulesCommand_ListsRAI002()
+	{
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["rules", "-n"]);
-            Assert.Equal(0, exitCode);
-            var output = sw.ToString();
-            Assert.Contains("RAI002", output);
-            Assert.Contains("Prohibit direct usage of System.IO.File", output);
-            Assert.Contains("rm()", output);
-            Assert.Contains("TextFile", output);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["rules", "-n"]);
+			Assert.Equal(0, exitCode);
+			var output = sw.ToString();
+			Assert.Contains("RAI002", output);
+			Assert.Contains("Prohibit direct usage of System.IO.File", output);
+			Assert.Contains("rm()", output);
+			Assert.Contains("TextFile", output);
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+		}
+	}
 
-    [Fact]
-    public void Main_RulesCommand_Json_IncludesRAI002()
-    {
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+	[Fact]
+	public void Main_RulesCommand_Json_IncludesRAI002()
+	{
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["rules", "--json"]);
-            Assert.Equal(0, exitCode);
-            var output = sw.ToString();
-            Assert.Contains("\"Id\": \"RAI001\"", output);
-            Assert.Contains("\"Id\": \"RAI002\"", output);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["rules", "--json"]);
+			Assert.Equal(0, exitCode);
+			var output = sw.ToString();
+			Assert.Contains("\"Id\": \"RAI001\"", output);
+			Assert.Contains("\"Id\": \"RAI002\"", output);
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+		}
+	}
 
-    [Fact]
-    public void Check_DetectsSystemIoFile()
-    {
-        var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
-        File.WriteAllText(tempFile, @"
+	[Fact]
+	public void Check_DetectsSystemIoFile()
+	{
+		var tempFile = new RaiFile(new RaiPath(Os.TempDir.FullPath), $"RailTest_{Guid.NewGuid():N}.cs").FullName;
+		new TextFile(tempFile).WriteAllText(@"
 using System;
 using System.IO;
 
@@ -246,31 +247,31 @@ public class Sample
     }
 }");
 
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["check", "-p", tempFile, "-n", "--json"]);
-            Assert.Equal(1, exitCode);
-            Assert.Contains("RAI002", sw.ToString());
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["check", "-p", tempFile, "-n", "--json"]);
+			Assert.Equal(1, exitCode);
+			Assert.Contains("RAI002", sw.ToString());
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+			if (new RaiFile(tempFile).Exists())
+			{
+				new RaiFile(tempFile).rm();
+			}
+		}
+	}
 
-    [Fact]
-    public void Fix_RewritesFileToRaiFile()
-    {
-        var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
-        File.WriteAllText(tempFile, @"
+	[Fact]
+	public void Fix_RewritesFileToRaiFile()
+	{
+		var tempFile = new RaiFile(new RaiPath(Os.TempDir.FullPath), $"RailTest_{Guid.NewGuid():N}.cs").FullName;
+		new TextFile(tempFile).WriteAllText(@"
 using System;
 using System.IO;
 
@@ -286,82 +287,82 @@ public class Sample
     }
 }");
 
-        try
-        {
-            var exitCode = Program.Main(["fix", "-p", tempFile, "-n"]);
-            Assert.Equal(0, exitCode);
+		try
+		{
+			var exitCode = Program.Main(["fix", "-p", tempFile, "-n"]);
+			Assert.Equal(0, exitCode);
 
-            var updated = File.ReadAllText(tempFile);
-            Assert.Contains("using OsLib;", updated);
-            Assert.Contains("new RaiFile(\"test.txt\").Exists()", updated);
-            Assert.Contains("new TextFile(\"test.txt\").Read()", updated);
-            Assert.Contains("new TextFile(\"test.txt\").ReadAllText()", updated);
-            Assert.Contains("new TextFile(\"test.txt\", \"hello\")", updated);
-            Assert.Contains("new RaiFile(\"test.txt\").rm()", updated);
-            Assert.DoesNotContain("File.Exists", updated);
-            Assert.DoesNotContain("File.ReadAllLines", updated);
-            Assert.DoesNotContain("File.ReadAllText", updated);
-            Assert.DoesNotContain("File.WriteAllText", updated);
-            Assert.DoesNotContain("File.Delete", updated);
-        }
-        finally
-        {
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
-        }
-    }
+			var updated = new TextFile(tempFile).ReadAllText();
+			Assert.Contains("using OsLib;", updated);
+			Assert.Contains("new RaiFile(\"test.txt\").Exists()", updated);
+			Assert.Contains("new TextFile(\"test.txt\").Read()", updated);
+			Assert.Contains("new TextFile(\"test.txt\").ReadAllText()", updated);
+			Assert.Contains("new TextFile(\"test.txt\", \"hello\")", updated);
+			Assert.Contains("new RaiFile(\"test.txt\").rm()", updated);
+			Assert.DoesNotContain("File.Exists", updated);
+			Assert.DoesNotContain("File.ReadAllLines", updated);
+			Assert.DoesNotContain("File.ReadAllText", updated);
+			Assert.DoesNotContain("File.WriteAllText", updated);
+			Assert.DoesNotContain("File.Delete", updated);
+		}
+		finally
+		{
+			if (new RaiFile(tempFile).Exists())
+			{
+				new RaiFile(tempFile).rm();
+			}
+		}
+	}
 
-    [Fact]
-    public void Main_RulesCommand_ListsRAI003AndRAI010()
-    {
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+	[Fact]
+	public void Main_RulesCommand_ListsRAI003AndRAI010()
+	{
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["rules", "-n"]);
-            Assert.Equal(0, exitCode);
-            var output = sw.ToString();
-            Assert.Contains("RAI003", output);
-            Assert.Contains("Prohibit direct usage of System.IO.Path", output);
-            Assert.Contains("RAI010", output);
-            Assert.Contains("Enforce tab indentation and prohibit consecutive spaces", output);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["rules", "-n"]);
+			Assert.Equal(0, exitCode);
+			var output = sw.ToString();
+			Assert.Contains("RAI003", output);
+			Assert.Contains("Prohibit direct usage of System.IO.Path", output);
+			Assert.Contains("RAI010", output);
+			Assert.Contains("Enforce tab indentation and prohibit consecutive spaces", output);
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+		}
+	}
 
-    [Fact]
-    public void Main_RulesCommand_Json_IncludesRAI003AndRAI010()
-    {
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+	[Fact]
+	public void Main_RulesCommand_Json_IncludesRAI003AndRAI010()
+	{
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["rules", "--json"]);
-            Assert.Equal(0, exitCode);
-            var output = sw.ToString();
-            Assert.Contains("\"Id\": \"RAI003\"", output);
-            Assert.Contains("\"Id\": \"RAI010\"", output);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["rules", "--json"]);
+			Assert.Equal(0, exitCode);
+			var output = sw.ToString();
+			Assert.Contains("\"Id\": \"RAI003\"", output);
+			Assert.Contains("\"Id\": \"RAI010\"", output);
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+		}
+	}
 
-    [Fact]
-    public void Check_DetectsSystemIoPath()
-    {
-        var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
-        File.WriteAllText(tempFile, @"
+	[Fact]
+	public void Check_DetectsSystemIoPath()
+	{
+		var tempFile = new RaiFile(new RaiPath(Os.TempDir.FullPath), $"RailTest_{Guid.NewGuid():N}.cs").FullName;
+		new TextFile(tempFile).WriteAllText(@"
 using System;
 using System.IO;
 
@@ -373,31 +374,31 @@ public class Sample
     }
 }");
 
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["check", "-p", tempFile, "-n", "--json"]);
-            Assert.Equal(1, exitCode);
-            Assert.Contains("RAI003", sw.ToString());
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["check", "-p", tempFile, "-n", "--json"]);
+			Assert.Equal(1, exitCode);
+			Assert.Contains("RAI003", sw.ToString());
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+			if (new RaiFile(tempFile).Exists())
+			{
+				new RaiFile(tempFile).rm();
+			}
+		}
+	}
 
-    [Fact]
-    public void Check_DetectsWhitespaceFormatting_SpaceIndent()
-    {
-        var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
-        File.WriteAllText(tempFile,
+	[Fact]
+	public void Check_DetectsWhitespaceFormatting_SpaceIndent()
+	{
+		var tempFile = new RaiFile(new RaiPath(Os.TempDir.FullPath), $"RailTest_{Guid.NewGuid():N}.cs").FullName;
+		new TextFile(tempFile).WriteAllText(
 "using System;\n" +
 "\n" +
 "public class Sample\n" +
@@ -407,33 +408,33 @@ public class Sample
 "    }\n" +
 "}");
 
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["check", "-p", tempFile, "-n", "--json"]);
-            Assert.Equal(1, exitCode);
-            var output = sw.ToString();
-            Assert.Contains("RAI010", output);
-            Assert.Contains("Indentation must use tabs", output);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["check", "-p", tempFile, "-n", "--json"]);
+			Assert.Equal(1, exitCode);
+			var output = sw.ToString();
+			Assert.Contains("RAI010", output);
+			Assert.Contains("Indentation must use tabs", output);
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+			if (new RaiFile(tempFile).Exists())
+			{
+				new RaiFile(tempFile).rm();
+			}
+		}
+	}
 
-    [Fact]
-    public void Fix_RewritesPathCombineToSlashOperator()
-    {
-        var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
-        File.WriteAllText(tempFile, @"
+	[Fact]
+	public void Fix_RewritesPathCombineToSlashOperator()
+	{
+		var tempFile = new RaiFile(new RaiPath(Os.TempDir.FullPath), $"RailTest_{Guid.NewGuid():N}.cs").FullName;
+		new TextFile(tempFile).WriteAllText(@"
 using System;
 using System.IO;
 
@@ -445,147 +446,147 @@ public class Sample
     }
 }");
 
-        try
-        {
-            var exitCode = Program.Main(["fix", "-p", tempFile, "-n"]);
-            Assert.Equal(0, exitCode);
+		try
+		{
+			var exitCode = Program.Main(["fix", "-p", tempFile, "-n"]);
+			Assert.Equal(0, exitCode);
 
-            var updated = File.ReadAllText(tempFile);
-            Assert.Contains("using OsLib;", updated);
-            Assert.Contains("new RaiPath(\"dir\") / \"sub\" / \"file.txt\"", updated);
-            Assert.DoesNotContain("Path.Combine", updated);
-        }
-        finally
-        {
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
-        }
-    }
+			var updated = new TextFile(tempFile).ReadAllText();
+			Assert.Contains("using OsLib;", updated);
+			Assert.Contains("new RaiPath(\"dir\") / \"sub\" / \"file.txt\"", updated);
+			Assert.DoesNotContain("Path.Combine", updated);
+		}
+		finally
+		{
+			if (new RaiFile(tempFile).Exists())
+			{
+				new RaiFile(tempFile).rm();
+			}
+		}
+	}
 
-    [Fact]
-    public void Main_RulesCommand_ListsAllSeventeenRules()
-    {
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+	[Fact]
+	public void Main_RulesCommand_ListsAllSeventeenRules()
+	{
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["rules", "-n"]);
-            Assert.Equal(0, exitCode);
-            var output = sw.ToString();
-            foreach (var ruleId in new[]
-            {
-                "RAI001", "RAI002", "RAI003", "RAI004", "RAI005", "RAI006",
-                "RAI007", "RAI008", "RAI009", "RAI010", "RAI011", "RAI012",
-                "RAI013", "RAI014", "RAI015", "RAI016", "RAI017"
-            })
-            {
-                Assert.Contains(ruleId, output);
-            }
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["rules", "-n"]);
+			Assert.Equal(0, exitCode);
+			var output = sw.ToString();
+			foreach (var ruleId in new[]
+			{
+				"RAI001", "RAI002", "RAI003", "RAI004", "RAI005", "RAI006",
+				"RAI007", "RAI008", "RAI009", "RAI010", "RAI011", "RAI012",
+				"RAI013", "RAI014", "RAI015", "RAI016", "RAI017"
+			})
+			{
+				Assert.Contains(ruleId, output);
+			}
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+		}
+	}
 
-    [Fact]
-    public void Main_GroupsCommand_ListsOverlappingGroupSets()
-    {
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+	[Fact]
+	public void Main_GroupsCommand_ListsOverlappingGroupSets()
+	{
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["groups", "-n"]);
-            Assert.Equal(0, exitCode);
-            var output = sw.ToString();
-            Assert.Contains("Group 'OsLib'", output);
-            Assert.Contains("Group 'CloudSync'", output);
-            Assert.Contains("Group 'JsonPit'", output);
-            Assert.Contains("Group 'CliCommand'", output);
-            Assert.Contains("Group 'RaiMedia'", output);
-            Assert.Contains("Group 'Formatting'", output);
-            Assert.All(output.Split('\n'), line => Assert.True(line.TrimEnd('\r').Length <= 90, line));
-            Assert.DoesNotContain("[RAI", output);
-            Assert.Contains("\n  RAI001 ", output);
-            // Non-consecutive set membership in CloudSync:
-            var unwrapped = string.Join(" ", output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-            Assert.Contains("RAI001, RAI002, RAI004, RAI007, RAI008, RAI011, RAI013, RAI014", unwrapped);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["groups", "-n"]);
+			Assert.Equal(0, exitCode);
+			var output = sw.ToString();
+			Assert.Contains("Group 'OsLib'", output);
+			Assert.Contains("Group 'CloudSync'", output);
+			Assert.Contains("Group 'JsonPit'", output);
+			Assert.Contains("Group 'CliCommand'", output);
+			Assert.Contains("Group 'RaiMedia'", output);
+			Assert.Contains("Group 'Formatting'", output);
+			Assert.All(output.Split('\n'), line => Assert.True(line.TrimEnd('\r').Length <= 90, line));
+			Assert.DoesNotContain("[RAI", output);
+			Assert.Contains("\n  RAI001 ", output);
+			// Non-consecutive set membership in CloudSync:
+			var unwrapped = string.Join(" ", output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+			Assert.Contains("RAI001, RAI002, RAI004, RAI007, RAI008, RAI011, RAI013, RAI014", unwrapped);
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+		}
+	}
 
-    [Fact]
-    public void Groups_WordWrap_PreservesWordsAndIndentsAfterRuleId()
-    {
-        const string prefix = "  RAI001 ";
-        var text = string.Join(" ", System.Linq.Enumerable.Repeat("whole-word", 20));
-        var lines = System.Linq.Enumerable.ToArray(Program.WrapGroupText(prefix, text));
-        Assert.True(lines.Length > 1);
-        Assert.StartsWith(prefix, lines[0]);
-        Assert.All(lines, line => Assert.True(line.Length <= 90));
-        Assert.All(System.Linq.Enumerable.Skip(lines, 1), line => Assert.StartsWith(new string(' ', prefix.Length), line));
-        Assert.Equal(text, string.Join(" ", System.Linq.Enumerable.Select(lines, line => line[prefix.Length..])));
-        var longWord = new string('x', 100);
-        Assert.Equal(new[] { prefix + longWord }, Program.WrapGroupText(prefix, longWord));
-    }
+	[Fact]
+	public void Groups_WordWrap_PreservesWordsAndIndentsAfterRuleId()
+	{
+		const string prefix = "  RAI001 ";
+		var text = string.Join(" ", System.Linq.Enumerable.Repeat("whole-word", 20));
+		var lines = System.Linq.Enumerable.ToArray(Program.WrapGroupText(prefix, text));
+		Assert.True(lines.Length > 1);
+		Assert.StartsWith(prefix, lines[0]);
+		Assert.All(lines, line => Assert.True(line.Length <= 90));
+		Assert.All(System.Linq.Enumerable.Skip(lines, 1), line => Assert.StartsWith(new string(' ', prefix.Length), line));
+		Assert.Equal(text, string.Join(" ", System.Linq.Enumerable.Select(lines, line => line[prefix.Length..])));
+		var longWord = new string('x', 100);
+		Assert.Equal(new[] { prefix + longWord }, Program.WrapGroupText(prefix, longWord));
+	}
 
-    [Fact]
-    public void Groups_Style_SeparatesIdsLabelsAndDescriptions()
-    {
-        Assert.Equal(new[] { "\u001b[1;94mRAI001\u001b[0m\u001b[1;94m \u001b[0m\u001b[36mRule title\u001b[0m" },
-            Program.FormatGroupText("RAI001 ", "Rule title", "1;94", "36", true));
-        Assert.Equal(new[] { "\u001b[3;35m  Description: \u001b[0m\u001b[33mGroup purpose\u001b[0m" },
-            Program.FormatGroupText("  Description: ", "Group purpose", "3;35", "33", true));
-        Assert.Equal(new[] { "RAI001 Rule title" },
-            Program.FormatGroupText("RAI001 ", "Rule title", "1;94", "36", false));
-        foreach (var style in new[] { "36", "33", "3;35" })
-        {
-            var output = string.Join("\n", Program.FormatGroupText("", "RAI001 and RAI017", style, style, true));
-            Assert.Contains("\u001b[1;94mRAI001\u001b[0m", output);
-            Assert.Contains("\u001b[1;94mRAI017\u001b[0m", output);
-        }
-        var header = string.Join("\n", Program.FormatGroupText("", "Group 'JsonPit' ({ RAI001 })", "36", "36", true));
-        Assert.Contains("\u001b[33mJsonPit\u001b[0m", header);
-        Assert.Contains("\u001b[1;94mRAI001\u001b[0m", header);
-    }
+	[Fact]
+	public void Groups_Style_SeparatesIdsLabelsAndDescriptions()
+	{
+		Assert.Equal(new[] { "\u001b[1;94mRAI001\u001b[0m\u001b[1;94m \u001b[0m\u001b[36mRule title\u001b[0m" },
+			Program.FormatGroupText("RAI001 ", "Rule title", "1;94", "36", true));
+		Assert.Equal(new[] { "\u001b[3;35m  Description: \u001b[0m\u001b[33mGroup purpose\u001b[0m" },
+			Program.FormatGroupText("  Description: ", "Group purpose", "3;35", "33", true));
+		Assert.Equal(new[] { "RAI001 Rule title" },
+			Program.FormatGroupText("RAI001 ", "Rule title", "1;94", "36", false));
+		foreach (var style in new[] { "36", "33", "3;35" })
+		{
+			var output = string.Join("\n", Program.FormatGroupText("", "RAI001 and RAI017", style, style, true));
+			Assert.Contains("\u001b[1;94mRAI001\u001b[0m", output);
+			Assert.Contains("\u001b[1;94mRAI017\u001b[0m", output);
+		}
+		var header = string.Join("\n", Program.FormatGroupText("", "Group 'JsonPit' ({ RAI001 })", "36", "36", true));
+		Assert.Contains("\u001b[33mJsonPit\u001b[0m", header);
+		Assert.Contains("\u001b[1;94mRAI001\u001b[0m", header);
+	}
 
-    [Fact]
-    public void Main_RulesCommand_WithGroupFilter_FiltersBySetMembership()
-    {
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+	[Fact]
+	public void Main_RulesCommand_WithGroupFilter_FiltersBySetMembership()
+	{
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["rules", "--group", "CliCommand", "-n"]);
-            Assert.Equal(0, exitCode);
-            var output = sw.ToString();
-            Assert.Contains("RAI006", output);
-            Assert.Contains("RAI013", output);
-            Assert.DoesNotContain("[RAI001]", output);
-            Assert.DoesNotContain("[RAI010]", output);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["rules", "--group", "CliCommand", "-n"]);
+			Assert.Equal(0, exitCode);
+			var output = sw.ToString();
+			Assert.Contains("RAI006", output);
+			Assert.Contains("RAI013", output);
+			Assert.DoesNotContain("[RAI001]", output);
+			Assert.DoesNotContain("[RAI010]", output);
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+		}
+	}
 
-    [Fact]
-    public void Check_DetectsArchitecturalAndJsonPitViolations()
-    {
-        var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
-        File.WriteAllText(tempFile, @"
+	[Fact]
+	public void Check_DetectsArchitecturalAndJsonPitViolations()
+	{
+		var tempFile = new RaiFile(new RaiPath(Os.TempDir.FullPath), $"RailTest_{Guid.NewGuid():N}.cs").FullName;
+		new TextFile(tempFile).WriteAllText(@"
 using System;
 using JsonPit;
 using Newtonsoft.Json.Linq;
@@ -619,43 +620,43 @@ public class Sample
 	}
 }");
 
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
+		var originalOut = Console.Out;
+		using var sw = new StringWriter();
+		Console.SetOut(sw);
 
-        try
-        {
-            var exitCode = Program.Main(["check", "-p", tempFile, "-n", "--json"]);
-            Assert.Equal(1, exitCode);
-            var output = sw.ToString();
-            Assert.Contains("RAI004", output);
-            Assert.Contains("RAI005", output);
-            Assert.Contains("RAI006", output);
-            Assert.Contains("RAI007", output);
-            Assert.Contains("RAI009", output);
-            Assert.Contains("RAI011", output);
-            Assert.Contains("RAI012", output);
-            Assert.Contains("RAI013", output);
-            Assert.Contains("RAI014", output);
-            Assert.Contains("RAI015", output);
-            Assert.Contains("RAI016", output);
-            Assert.Contains("RAI017", output);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
-        }
-    }
+		try
+		{
+			var exitCode = Program.Main(["check", "-p", tempFile, "-n", "--json"]);
+			Assert.Equal(1, exitCode);
+			var output = sw.ToString();
+			Assert.Contains("RAI004", output);
+			Assert.Contains("RAI005", output);
+			Assert.Contains("RAI006", output);
+			Assert.Contains("RAI007", output);
+			Assert.Contains("RAI009", output);
+			Assert.Contains("RAI011", output);
+			Assert.Contains("RAI012", output);
+			Assert.Contains("RAI013", output);
+			Assert.Contains("RAI014", output);
+			Assert.Contains("RAI015", output);
+			Assert.Contains("RAI016", output);
+			Assert.Contains("RAI017", output);
+		}
+		finally
+		{
+			Console.SetOut(originalOut);
+			if (new RaiFile(tempFile).Exists())
+			{
+				new RaiFile(tempFile).rm();
+			}
+		}
+	}
 
-    [Fact]
-    public void Fix_RewritesRaiPathTrailingSlash_PitDirExists_AndImageNamingConvention()
-    {
-        var tempFile = Path.Combine(Path.GetTempPath(), $"RailTest_{Guid.NewGuid():N}.cs");
-        File.WriteAllText(tempFile, @"
+	[Fact]
+	public void Fix_RewritesRaiPathTrailingSlash_PitDirExists_AndImageNamingConvention()
+	{
+		var tempFile = new RaiFile(new RaiPath(Os.TempDir.FullPath), $"RailTest_{Guid.NewGuid():N}.cs").FullName;
+		new TextFile(tempFile).WriteAllText(@"
 public class Sample
 {
 	public void Run(Pit userPit)
@@ -667,22 +668,22 @@ public class Sample
 	}
 }");
 
-        try
-        {
-            var exitCode = Program.Main(["fix", "-p", tempFile, "-n"]);
-            Assert.Equal(0, exitCode);
+		try
+		{
+			var exitCode = Program.Main(["fix", "-p", tempFile, "-n"]);
+			Assert.Equal(0, exitCode);
 
-            var updated = File.ReadAllText(tempFile);
-            Assert.Contains("new RaiPath(\"/Users/rsb/temp/AfricaStage_TestRoot/\")", updated);
-            Assert.Contains("userPit.JsonFile.Path.Exists()", updated);
-            Assert.Contains("ImageNamingConvention.Structured", updated);
-        }
-        finally
-        {
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
-        }
-    }
+			var updated = new TextFile(tempFile).ReadAllText();
+			Assert.Contains("new RaiPath(\"/Users/rsb/temp/AfricaStage_TestRoot/\")", updated);
+			Assert.Contains("userPit.JsonFile.Path.Exists()", updated);
+			Assert.Contains("ImageNamingConvention.Structured", updated);
+		}
+		finally
+		{
+			if (new RaiFile(tempFile).Exists())
+			{
+				new RaiFile(tempFile).rm();
+			}
+		}
+	}
 }

@@ -10,7 +10,7 @@ public class RunSwitchAndExemptionTests
 {
 	private static CSharpCompilation Compile(params string[] sources)
 	{
-		var paths = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
+		var paths = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(OsLib.LocalFileSystem.SearchPathSeparator)
 			.Concat(new[] { typeof(OsLib.Os).Assembly.Location, typeof(Newtonsoft.Json.Linq.JObject).Assembly.Location }).Distinct();
 		var compilation = CSharpCompilation.Create("CR070", sources.Select(s => CSharpSyntaxTree.ParseText(s)),
 			paths.Select(p => MetadataReference.CreateFromFile(p)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));

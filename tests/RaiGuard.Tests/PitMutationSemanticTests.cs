@@ -7,7 +7,7 @@ namespace RaiGuard.Tests;
 
 public class PitMutationSemanticTests
 {
-	private static readonly string[] AssemblyPaths = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
+	private static readonly string[] AssemblyPaths = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(OsLib.LocalFileSystem.SearchPathSeparator)
 		.Concat(new[] { typeof(JsonPit.Pit).Assembly.Location, typeof(Newtonsoft.Json.Linq.JObject).Assembly.Location, typeof(OsLib.RaiPath).Assembly.Location })
 		.Distinct().ToArray();
 	private static List<SyntaxDiagnosticFinding> Analyze(string body)
@@ -33,7 +33,7 @@ class Example {
 
 	public static IEnumerable<object[]> SuppliedProbes()
 	{
-		var cases = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures/cr077-sipho-probes.json")))!;
+		var cases = JsonSerializer.Deserialize<Dictionary<string, string>>(new OsLib.TextFile(new OsLib.RaiPath(AppContext.BaseDirectory) / "Fixtures", "cr077-sipho-probes.json").ReadFromDisk())!;
 		return cases.Select(pair => new object[] { pair.Key, pair.Value });
 	}
 

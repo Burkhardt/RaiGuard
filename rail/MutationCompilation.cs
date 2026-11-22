@@ -1,3 +1,4 @@
+using OsLib;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using System.Text.Json;
@@ -16,20 +17,20 @@ internal static class MutationCompilation
 		var paths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		void Add(string path)
 		{
-			if (File.Exists(path)) paths.TryAdd(Path.GetFileName(path), path);
+			if (LocalFileSystem.FileExists(path)) paths.TryAdd(LocalFileSystem.LeafName(path), path);
 		}
 		var assetsFiles = new HashSet<string>();
 		foreach (var file in files)
 		{
-			for (var directory = new DirectoryInfo(Path.GetDirectoryName(Path.GetFullPath(file))!); directory != null; directory = directory.Parent)
+			for (var directory = LocalFileSystem.ParentName(LocalFileSystem.AbsoluteName(file)); directory != null; directory = LocalFileSystem.ParentName(directory))
 			{
-				var assets = Path.Combine(directory.FullName, "obj", "project.assets.json");
-				if (File.Exists(assets)) { assetsFiles.Add(assets); break; }
+				var assets = LocalFileSystem.Combine(directory, "obj", "project.assets.json");
+				if (LocalFileSystem.FileExists(assets)) { assetsFiles.Add(assets); break; }
 			}
 		}
 		foreach (var assetFile in assetsFiles)
 		{
-			using var document = JsonDocument.Parse(File.ReadAllText(assetFile));
+			using var document = JsonDocument.Parse(LocalFileSystem.ReadText(assetFile));
 			var root = document.RootElement;
 			if (!root.TryGetProperty("targets", out var targets) || !root.TryGetProperty("packageFolders", out var folders) || !root.TryGetProperty("libraries", out var libraries)) continue;
 			foreach (var target in targets.EnumerateObject())
@@ -38,14 +39,14 @@ internal static class MutationCompilation
 				if (!library.Value.TryGetProperty("compile", out var compile) || !libraries.TryGetProperty(library.Name, out var info) || !info.TryGetProperty("path", out var packagePath)) continue;
 				foreach (var item in compile.EnumerateObject())
 				foreach (var folder in folders.EnumerateObject())
-					if (item.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) Add(Path.Combine(folder.Name, packagePath.GetString()!, item.Name));
+					if (item.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) Add(LocalFileSystem.Combine(folder.Name, packagePath.GetString()!, item.Name));
 			}
 		}
-		foreach (var path in ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? "").Split(Path.PathSeparator)) Add(path);
-		foreach (var path in Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll")) Add(path);
+		foreach (var path in ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? "").Split(LocalFileSystem.SearchPathSeparator)) Add(path);
+		foreach (var file in LocalFileSystem.Files(AppContext.BaseDirectory, "*.dll")) Add(file);
 		Add(typeof(JsonPit.Pit).Assembly.Location);
 		Add(typeof(Newtonsoft.Json.Linq.JObject).Assembly.Location);
-		var trees = files.Select(path => CSharpSyntaxTree.ParseText((readSource ?? File.ReadAllText)(path), path: path)).ToList();
+		var trees = files.Select(path => CSharpSyntaxTree.ParseText((readSource?.Invoke(path) ?? LocalFileSystem.ReadText(path)), path: path)).ToList();
 		var references = paths.Values.Select(path => MetadataReference.CreateFromFile(path));
 		var compilation = CSharpCompilation.Create("RailInspection", trees, references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 		if (compilation.GetDiagnostics().Any(d => d.Severity == DiagnosticSeverity.Error))

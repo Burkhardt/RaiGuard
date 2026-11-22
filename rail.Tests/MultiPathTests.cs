@@ -1,4 +1,5 @@
 using System.Text.Json;
+using OsLib;
 
 namespace RaiGuard.Tests;
 
@@ -10,14 +11,40 @@ public partial class RailCliTests
 	private const string BadSource = "class Bad { void M() { System.IO.Directory.GetFiles(\".\"); } }\n";
 
 	[Fact]
+	public void CheckHonorsScopedCompilerWarningDirectives()
+	{
+		using var fixture = new MultiPathFixture();
+		var source = fixture.Source("Suppression.cs", """
+			class Example
+			{
+				void Inspect()
+				{
+			#pragma warning disable RAI001
+					System.IO.Directory.GetFiles(".");
+			#pragma warning restore RAI001
+					System.IO.Directory.GetDirectories(".");
+				}
+			}
+			""");
+		var result = Invoke(["check", source, "--rule", "RAI001", "--json"]);
+		Assert.Equal(1, result.Exit);
+		using var findings = JsonDocument.Parse(result.Output);
+		Assert.Contains("GetDirectories", Assert.Single(findings.RootElement.EnumerateArray()).GetProperty("Message").GetString());
+		Assert.Equal(0, Invoke(["fix", source, "--rule", "RAI001"]).Exit);
+		var fixedSource = new TextFile(source).ReadAllText();
+		Assert.Contains("System.IO.Directory.GetFiles", fixedSource);
+		Assert.DoesNotContain("System.IO.Directory.GetDirectories", fixedSource);
+	}
+
+	[Fact]
 	public void MultipleDirectories_FindingOnlyInFourth_IsNotDropped()
 	{
 		using var fixture = new MultiPathFixture();
 		var paths = Enumerable.Range(1, 4).Select(i => fixture.Directory("Project" + i)).ToArray();
-		for (var i = 0; i < paths.Length; i++) File.WriteAllText(Path.Combine(paths[i], "Source.cs"), i == 3 ? BadSource : CleanSource);
+		for (var i = 0; i < paths.Length; i++) new TextFile(new RaiPath(paths[i]), "Source.cs").WriteAllText(i == 3 ? BadSource : CleanSource);
 		var result = Invoke(["check", .. paths, "--rule", "RAI001", "-n"]);
 		Assert.Equal(1, result.Exit);
-		Assert.Contains(Path.Combine(paths[3], "Source.cs"), result.Output);
+		Assert.Contains(new RaiFile(new RaiPath(paths[3]), "Source.cs").FullName, result.Output);
 		Assert.Contains("across 4 file(s)", result.Output);
 	}
 
@@ -27,11 +54,11 @@ public partial class RailCliTests
 		using var fixture = new MultiPathFixture();
 		var first = fixture.Source("first/A.cs", CleanSource);
 		var second = fixture.Source("second/B.cs", CleanSource);
-		var args = new[] { "check", Path.GetDirectoryName(first)!, Path.GetDirectoryName(second)!, "--rule", "RAI001", "-n" };
+		var args = new[] { "check", new RaiFile(first).Path.FullPath.TrimEnd(Os.DIR[0]), new RaiFile(second).Path.FullPath.TrimEnd(Os.DIR[0]), "--rule", "RAI001", "-n" };
 		var clean = Invoke(args);
 		Assert.Equal(0, clean.Exit);
 		Assert.Contains("Checked 2 files", clean.Output);
-		File.WriteAllText(second, BadSource);
+		new TextFile(second).WriteAllText(BadSource);
 		var bad = Invoke(args);
 		Assert.Equal(1, bad.Exit);
 		Assert.Contains(second, bad.Output);
@@ -43,7 +70,7 @@ public partial class RailCliTests
 		using var fixture = new MultiPathFixture();
 		var z = fixture.Source("parent/nested/Z.cs", BadSource);
 		var a = fixture.Source("parent/A.cs", BadSource);
-		string[] inputs = [z, fixture.Root, Path.GetDirectoryName(z)!, a, a, Path.Combine(fixture.Root, "parent", "..", "parent")];
+		string[] inputs = [z, fixture.Root, new RaiFile(z).Path.FullPath.TrimEnd(Os.DIR[0]), a, a, new RaiFile((new RaiPath(fixture.Root) / ("parent") / ("..")), "parent").FullName];
 		var files = SourceSelection.Resolve(inputs, new SourceFileSystem());
 		Assert.Equal(new[] { a, z }, files);
 		var result = Invoke(["check", .. inputs, "--json", "--rule", "RAI001"]);
@@ -99,13 +126,13 @@ public partial class RailCliTests
 	{
 		using var fixture = new MultiPathFixture();
 		var first = fixture.Source("A.cs", BadSource);
-		var invalid = Path.Combine(fixture.Root, invalidName);
-		if (invalidName.EndsWith(".txt")) File.WriteAllText(invalid, "unsupported");
+		var invalid = new RaiFile(new RaiPath(fixture.Root), invalidName).FullName;
+		if (invalidName.EndsWith(".txt")) new TextFile(invalid).WriteAllText("unsupported");
 		var result = Invoke([command, first, invalid, .. json ? new[] { "--json" } : new[] { "-n" }]);
 		Assert.Equal(2, result.Exit);
 		Assert.Contains(invalid, result.Error);
 		Assert.DoesNotContain("No proven", result.Output);
-		Assert.Equal(BadSource, File.ReadAllText(first));
+		Assert.Equal(BadSource, new TextFile(first).ReadAllText());
 		if (json) Assert.Equal("[]", result.Output.Trim());
 	}
 
@@ -123,7 +150,7 @@ public partial class RailCliTests
 		Assert.Equal(2, result.Exit);
 		Assert.Equal("[]", result.Output.Trim());
 		Assert.Contains(option, result.Error);
-		Assert.Equal(BadSource, File.ReadAllText(source));
+		Assert.Equal(BadSource, new TextFile(source).ReadAllText());
 	}
 
 	[Fact]
@@ -167,12 +194,12 @@ public partial class RailCliTests
 		Assert.Contains(a, dry.Output);
 		Assert.Contains(b, dry.Output);
 		Assert.Empty(fs.Written);
-		Assert.Equal(BadSource, File.ReadAllText(a));
-		Assert.Equal(BadSource, File.ReadAllText(b));
+		Assert.Equal(BadSource, new TextFile(a).ReadAllText());
+		Assert.Equal(BadSource, new TextFile(b).ReadAllText());
 		var applied = Invoke(["fix", a, b, fixture.Root, "--rule", "RAI001", "-n"], fs);
 		Assert.Equal(0, applied.Exit);
 		Assert.Equal(new[] { a, b }, fs.Written);
-		Assert.All(new[] { a, b }, f => Assert.Contains("new RaiPath", File.ReadAllText(f)));
+		Assert.All(new[] { a, b }, f => Assert.Contains("new RaiPath", new TextFile(f).ReadAllText()));
 	}
 
 	[Fact]
@@ -192,7 +219,7 @@ public partial class RailCliTests
 				Assert.Equal(0, result.Exit);
 				Assert.Contains("Checked 1 files", result.Output);
 			}
-			var excluded = Invoke(["check", Path.Combine(fixture.Root, "obj"), "-n"]);
+			var excluded = Invoke(["check", new RaiFile(new RaiPath(fixture.Root), "obj").FullName, "-n"]);
 			Assert.Equal(0, excluded.Exit);
 			Assert.Contains("No C# source files", excluded.Output);
 			var zero = Invoke(["check", empty, "-n"]);
@@ -213,14 +240,14 @@ public partial class RailCliTests
 		using var fixture = new MultiPathFixture();
 		var first = fixture.Source("first/A.cs", BadSource);
 		var second = fixture.Source("second/B.cs", BadSource);
-		var failure = enumerationFailure ? Path.GetDirectoryName(second)! : second;
+		var failure = enumerationFailure ? new RaiFile(second).Path.FullPath.TrimEnd(Os.DIR[0]) : second;
 		var fs = new FailingFileSystem(failure, enumerationFailure ? "enumerate" : "validate");
-		var result = Invoke([command, first, Path.GetDirectoryName(second)!, "--json"], fs);
+		var result = Invoke([command, first, new RaiFile(second).Path.FullPath.TrimEnd(Os.DIR[0]), "--json"], fs);
 		if (command == "check") Assert.Equal("[]", result.Output.Trim());
 		Assert.Equal(2, result.Exit);
 		Assert.Contains(failure, result.Error);
 		Assert.Empty(fs.Written);
-		Assert.All(new[] { first, second }, f => Assert.Equal(BadSource, File.ReadAllText(f)));
+		Assert.All(new[] { first, second }, f => Assert.Equal(BadSource, new TextFile(f).ReadAllText()));
 	}
 
 	[Fact]
@@ -253,9 +280,9 @@ public partial class RailCliTests
 	{
 		using var fixture = new MultiPathFixture();
 		var upper = fixture.Source("UPPER.cs", CleanSource);
-		var lower = Path.Combine(fixture.Root, "upper.cs");
-		var caseInsensitive = File.Exists(lower);
-		if (!caseInsensitive) File.WriteAllText(lower, CleanSource);
+		var lower = new RaiFile(new RaiPath(fixture.Root), "upper.cs").FullName;
+		var caseInsensitive = new RaiFile(lower).Exists();
+		if (!caseInsensitive) new TextFile(lower).WriteAllText(CleanSource);
 		var files = SourceSelection.Resolve([upper, lower, fixture.Root], new SourceFileSystem());
 		Assert.Equal(caseInsensitive ? 1 : 2, files.Count);
 	}
@@ -308,22 +335,21 @@ public partial class RailCliTests
 
 	private sealed class MultiPathFixture : IDisposable
 	{
-		internal string Root { get; } = Path.Combine(Path.GetTempPath(), "rail-cr078-" + Guid.NewGuid().ToString("N"));
-		internal MultiPathFixture() => System.IO.Directory.CreateDirectory(Root);
+		internal string Root { get; } = new RaiFile(new RaiPath(Os.TempDir.FullPath), "rail-cr078-" + Guid.NewGuid().ToString("N")).FullName;
+		internal MultiPathFixture() => new RaiPath(Root).mkdir();
 		internal string Directory(string relative)
 		{
-			var path = Path.Combine(Root, relative);
-			System.IO.Directory.CreateDirectory(path);
+			var path = new RaiFile(new RaiPath(Root), relative).FullName;
+			new RaiPath(path).mkdir();
 			return path;
 		}
 		internal string Source(string relative, string content)
 		{
-			var path = Path.Combine(Root, relative);
-			System.IO.Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-			File.WriteAllText(path, content);
+			var path = new RaiFile(new RaiPath(Root), relative).FullName;
+			new TextFile(path).WriteAllText(content);
 			return path;
 		}
-		public void Dispose() => System.IO.Directory.Delete(Root, true);
+		public void Dispose() => new RaiPath(Root).rmdir(deleteFiles: true);
 	}
 
 	private class TrackingFileSystem : SourceFileSystem
