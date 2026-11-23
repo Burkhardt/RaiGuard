@@ -244,15 +244,25 @@ public static class DiagnosticDescriptors
 		helpLinkUri: "https://github.com/Burkhardt/RaiGuard/blob/main/ARCHITECTURE_RULES.md#rai020",
 		description: "Merged change files must be cleaned up by the master. Suppressing cleanup with a parameter, option or ChangeFileCleanupGrace override accumulates change files and slows every reader. Use a declared RaiRuleExemption with a justification in the rare cases where it is intended.");
 
+	public static readonly DiagnosticDescriptor PreserveTestConfiguration = new(
+		id: "RAI021",
+		title: "Preserve the user's RAIkeep configuration in tests",
+		messageFormat: "{0}",
+		category: ArchitectureCategory,
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true,
+		description: "Tests must not replace, redirect or mutate the user's RAIkeep configuration. Resolve TestCloud from the real configuration and skip cloud tests when its drive is unavailable.",
+		helpLinkUri: "https://github.com/Burkhardt/RaiGuard/blob/main/ARCHITECTURE_RULES.md#rai021");
+
 	public static readonly ImmutableArray<RuleGroup> Groups = ImmutableArray.Create(
 		new RuleGroup(
 			"OsLib",
 			"Path algebra (RaiPath/RaiRelPath), file/directory objects (RaiFile/TextFile), typed CliCommand execution, and sacred Os.Config",
-			"RAI001", "RAI002", "RAI003", "RAI004", "RAI005", "RAI006", "RAI007", "RAI008", "RAI009"),
+			"RAI001", "RAI002", "RAI003", "RAI004", "RAI005", "RAI006", "RAI007", "RAI008", "RAI009", "RAI021"),
 		new RuleGroup(
 			"CloudSync",
 			"Cloud-drive replication invariants (CR022 in-place writes, CR040 sparse deltas, CR033 canonical path reservation, and reload safety)",
-			"RAI001", "RAI002", "RAI004", "RAI007", "RAI008", "RAI011", "RAI013", "RAI014", "RAI018", "RAI019", "RAI020"),
+			"RAI001", "RAI002", "RAI004", "RAI007", "RAI008", "RAI011", "RAI013", "RAI014", "RAI018", "RAI019", "RAI020", "RAI021"),
 		new RuleGroup(
 			"JsonPit",
 			"Open-world sparse Pit and PitItem persistence, temporal merge, protected lifecycle attributes, PitsCommand gates, and DateParseHandling.None",
@@ -291,7 +301,8 @@ public static class DiagnosticDescriptors
 		new RuleCatalogEntry("RAI017", ProhibitAdHocMediaUrlComposition, "Use canonical 'MediaUrls.Video(...)', 'MediaUrls.Poster(...)', or 'MediaUrls.Image(...)' instead of manual string formatting", "RaiMedia"),
 		new RuleCatalogEntry("RAI018", ProhibitProcessFlagWriteOutsideWriteClaim, "Reads must not touch the ProcessFlagFile; only the write-claim path (TryAcquireMaster from Save/Store/Maintain/MergeChanges) may update it", "JsonPit", "CloudSync"),
 		new RuleCatalogEntry("RAI019", EnforceMasterTicketRelease, "Claim the ticket only with TryAcquireMaster and return it with ReturnClaim after Save()/Store(); never write the Master ticket directly", "JsonPit", "CloudSync"),
-		new RuleCatalogEntry("RAI020", WarnChangeFileCleanupAvoided, "Let the master clean up merged change files; use a declared RaiRuleExemption with justification in rare cases", "JsonPit", "CloudSync")
+		new RuleCatalogEntry("RAI020", WarnChangeFileCleanupAvoided, "Let the master clean up merged change files; use a declared RaiRuleExemption with justification in rare cases", "JsonPit", "CloudSync"),
+		new RuleCatalogEntry("RAI021", PreserveTestConfiguration, "Use the real RAIkeep configuration and its configured TestCloud; never substitute or mutate it in tests", "OsLib", "CloudSync")
 	);
 
 	public static HashSet<string>? ResolveFilterSet(string? ruleFilter, string? groupFilter)

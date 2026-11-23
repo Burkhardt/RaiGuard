@@ -52,7 +52,7 @@ To automatically enforce RaiGuard across all current and future projects in a re
 </Project>
 ```
 
-Once saved, every `dotnet build` or IDE compilation across the entire repository enforces all 16 RaiGuard rules (`RAI001`–`RAI016`) across the 6 overlapping rule group sets (`OsLib`, `CloudSync`, `JsonPit`, `CliCommand`, `RaiMedia`, `Formatting`).
+Once saved, `dotnet build` and IDE compilation run the enabled RaiGuard rules across the repository. Use `rail rules` to see the complete catalog.
 
 ---
 
@@ -258,7 +258,7 @@ jobs:
 
 ---
 
-## Summary of Guardrail Rules (`RAI001`–`RAI017`)
+## Selected Guardrail Rules
 
 | Rule ID | Groups | Severity | Title | Remedy |
 |---------|--------|----------|-------|--------|
@@ -279,6 +279,7 @@ jobs:
 | **`RAI015`** | `JsonPit` | Warning | Prohibit unexpanded `{...}`/`<...>` placeholders in `PitItem` IDs (`CR049`) and unsafe `JObject.Parse` | Validate IDs before `new PitItem(id)` and parse JSON via `JsonFile` or `JsonReader` with `DateParseHandling.None` |
 | **`RAI016`** | `RaiMedia` | Warning | Enforce `RaiUtils.WordCase` (`CR019`), alphanumeric `DiagramBuilder` `baseItemId` (`CR025`), and `ImageNamingConvention.Structured` | Use `RaiUtils.WordCase`, alphanumeric `baseItemId` without `_UCD`/`_CD` suffixes, and `ImageNamingConvention.Structured` |
 | **`RAI017`** | `RaiMedia` | Warning | Prohibit ad-hoc `/img/` media URL string composition | Use canonical `MediaUrls.Video(...)`, `MediaUrls.Poster(...)`, or `MediaUrls.Image(...)` instead of manual string formatting |
+| **`RAI021`** | `OsLib`, `CloudSync` | Warning | Detect test configuration substitution and mutation | Preserve the real configuration and resolve `TestCloud` from it; see [RAI021](ARCHITECTURE_RULES.md#rai021) for detection limits |
 
 ## CR070: run switches and explicit test subjects
 

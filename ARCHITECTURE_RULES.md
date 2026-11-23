@@ -1,25 +1,42 @@
 # RaiGuard Architecture Guardrails & Empirical Audit Reference
 
-This document provides the deep-dive engineering rationale behind all **17 RaiGuard rules (`RAI001`–`RAI017`)**, their organization into **6 overlapping Rule Group Sets**, why mainstream .NET and LLM-trained patterns conflict with the cloud-replicated, object-oriented physics of the **RAIkeep** framework (`OsLib`, `JsonPit`, `RaiUtils`, `RaiImage`, `RaiDiagram`), and the empirical audit findings across `AIA`, `AfricaStage`, and `RAIkeep`.
+## RAI021
+
+Tests must not redirect or replace `~/.config/RAIkeep.json5`, alter its loaded
+cloud mappings, or substitute a configuration home. Resolve `TestCloud` from
+the real configuration and use an owned directory within its actual drive;
+skip cloud-dependent tests with a reason when the drive is unavailable.
+
+RAI021 reports recognizable C# test patterns: configuration-related
+environment writes, the RAIkeep `TestRuntime.Create` helper, writes to known
+configuration paths, direct or locally aliased `Os.Config` assignments, and
+recognizable synthetic cloud configuration objects for inspection.
+It runs in the compiler analyzer and `rail check` and belongs to the OsLib and
+CloudSync groups. Static analysis cannot identify every indirect override or
+mock; a clean scan is not proof of compliance. `rail` inspects C# only, so
+Python tests and release scripts still require separate review. Suppression
+of a warning is not authorization to deviate from the testing agreement.
+
+This document describes RaiGuard architecture rules, their organization into **6 overlapping Rule Group Sets**, and why mainstream .NET patterns can conflict with the cloud-replicated physics of the **RAIkeep** framework.
 
 ---
 
 ## Rule Group Sets (`rail groups`)
 
-Rules are numbered continuously (`RAI001`–`RAI016`) with no gaps, while **Rule Groups** are modeled as mathematical sets (`RuleGroup`). A rule may belong to multiple groups, and the rules within a group do not need consecutive numbers:
+Rules are numbered continuously (`RAI001`–`RAI021`), while **Rule Groups** are modeled as mathematical sets (`RuleGroup`). A rule may belong to multiple groups, and the rules within a group do not need consecutive numbers:
 
 | Group Set | Member Set (`RAIxxx`) | Description |
 | :--- | :--- | :--- |
-| **`OsLib`** | $\{ \text{RAI001, RAI002, RAI003, RAI004, RAI005, RAI006, RAI007, RAI008, RAI009} \}$ | Path algebra (`RaiPath`/`RaiRelPath`), file/directory objects (`RaiFile`/`TextFile`), typed `CliCommand` execution, and sacred `Os.Config` |
-| **`CloudSync`** | $\{ \text{RAI001, RAI002, RAI004, RAI007, RAI008, RAI011, RAI013, RAI014} \}$ | Cloud-drive replication invariants (`CR022` in-place writes, `CR040` sparse deltas, `CR033` canonical path reservation, and reload safety) |
-| **`JsonPit`** | $\{ \text{RAI006, RAI008, RAI011, RAI012, RAI013, RAI014, RAI015} \}$ | Open-world sparse `Pit` and `PitItem` persistence, temporal merge, protected lifecycle attributes, `PitsCommand` gates, and `DateParseHandling.None` |
+| **`OsLib`** | $\{ \text{RAI001, RAI002, RAI003, RAI004, RAI005, RAI006, RAI007, RAI008, RAI009, RAI021} \}$ | Path algebra (`RaiPath`/`RaiRelPath`), file/directory objects (`RaiFile`/`TextFile`), typed `CliCommand` execution, and sacred `Os.Config` |
+| **`CloudSync`** | $\{ \text{RAI001, RAI002, RAI004, RAI007, RAI008, RAI011, RAI013, RAI014, RAI018, RAI019, RAI020, RAI021} \}$ | Cloud-drive replication invariants (`CR022` in-place writes, `CR040` sparse deltas, `CR033` canonical path reservation, and reload safety) |
+| **`JsonPit`** | $\{ \text{RAI006, RAI008, RAI011, RAI012, RAI013, RAI014, RAI015, RAI018, RAI019, RAI020} \}$ | Open-world sparse `Pit` and `PitItem` persistence, temporal merge, protected lifecycle attributes, `PitsCommand` gates, and `DateParseHandling.None` |
 | **`CliCommand`** | $\{ \text{RAI006, RAI013} \}$ | Typed `OsLib` CLI command execution (`PitsCommand`, `IorgCommand`, `RaidCommand`, `AmafuCommand`) and external CLI seed reload safety |
-| **`RaiMedia`** | $\{ \text{RAI006, RAI008, RAI016} \}$ | `RaiUtils.WordCase` (`CR019`), `RaiImage` (`ImageNamingConvention.Structured`, `IorgCommand`), and `RaiDiagram` (`DiagramBuilder` `baseItemId` per `CR025`, `RaidCommand`) |
+| **`RaiMedia`** | $\{ \text{RAI006, RAI008, RAI016, RAI017} \}$ | `RaiUtils.WordCase` (`CR019`), `RaiImage` (`ImageNamingConvention.Structured`, `IorgCommand`), and `RaiDiagram` (`DiagramBuilder` `baseItemId` per `CR025`, `RaidCommand`) |
 | **`Formatting`** | $\{ \text{RAI010} \}$ | Tab indentation (`\t`) and single-space token separation invariants |
 
 ---
 
-## Part I: Complete Rule Reference (`RAI001`–`RAI016`)
+## Part I: Rule Reference (`RAI001`–`RAI017`)
 
 ### `RAI001` — Prohibit Direct Usage of `System.IO.Directory` and `DirectoryInfo`
 - **Groups**: `OsLib`, `CloudSync`

@@ -96,7 +96,8 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 		DiagnosticDescriptors.ProhibitAdHocMediaUrlComposition,
 		DiagnosticDescriptors.ProhibitProcessFlagWriteOutsideWriteClaim,
 		DiagnosticDescriptors.EnforceMasterTicketRelease,
-		DiagnosticDescriptors.WarnChangeFileCleanupAvoided
+		DiagnosticDescriptors.WarnChangeFileCleanupAvoided,
+		DiagnosticDescriptors.PreserveTestConfiguration
 	);
 
 	public override void Initialize(AnalysisContext context)
@@ -168,6 +169,12 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 		if (includeSystemIoAndFormatting)
 		{
 			AnalyzeSystemIoSyntax(root, MatchesRule, AddFinding);
+		}
+
+		if (MatchesRule("RAI021"))
+		{
+			TestConfigurationAnalysis.Analyze(tree, root, semanticModel,
+				(location, message) => AddFinding(DiagnosticDescriptors.PreserveTestConfiguration, location, message));
 		}
 
 		// 2. Object Creation Rules (RAI004, RAI005, RAI006, RAI015, RAI016)

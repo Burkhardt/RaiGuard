@@ -17,11 +17,11 @@ See the [CR078 implementation report](https://github.com/Burkhardt/RAIkeep/blob/
 for the exact contract, verification and local candidate instructions. Publication
 remains gated on independent consumer acceptance and Rainer's manual release.
 
-## Latest Version 4.7.0
+## Latest Version 4.7.1
 
 Show the executing machine as "on <machine>" in the CLI banner. Size both decorative rules to the complete heading, including the hostname; preserve bold cyan styling and plain redirected output. Apply the same heading to the grouped rule display.
 
-Latest release notes: [RaiGuard 4.7.0 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#470).
+Latest release notes: [RaiGuard 4.7.1 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#471).
 
 ## Previous Versions
 
@@ -65,7 +65,7 @@ sudo dotnet tool update RaiGuard --tool-path /usr/local/bin
 To enforce guardrails during `dotnet build` and in IDEs, add the analyzer package to your `.csproj` or repository `Directory.Build.props`:
 
 ```xml
-<PackageReference Include="RaiGuard.Analyzer" Version="4.7.0">
+<PackageReference Include="RaiGuard.Analyzer" Version="4.7.1">
   <PrivateAssets>all</PrivateAssets>
   <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 </PackageReference>
@@ -317,18 +317,18 @@ rail check --json
 
 ### Rule Group Sets
 
-Rules are numbered continuously (`RAI001`–`RAI017`) and organized into overlapping **Rule Group Sets** (`rail groups`). A rule may belong to multiple groups, and group members do not require consecutive numbers:
+Rules are numbered continuously (`RAI001`–`RAI021`) and organized into overlapping **Rule Group Sets** (`rail groups`). A rule may belong to multiple groups, and group members do not require consecutive numbers:
 
 | Group Set | Member Rules (`RAIxxx`) | Scope |
 |-----------|-------------------------|-------|
-| **`OsLib`** | `{ RAI001, RAI002, RAI003, RAI004, RAI005, RAI006, RAI007, RAI008, RAI009 }` | Path algebra (`RaiPath`/`RaiRelPath`), file/directory objects (`RaiFile`/`TextFile`), typed `CliCommand` execution, and sacred `Os.Config` |
-| **`CloudSync`** | `{ RAI001, RAI002, RAI004, RAI007, RAI008, RAI011, RAI013, RAI014 }` | Cloud-drive replication invariants (`CR022` in-place writes, `CR040` sparse deltas, `CR033` canonical path reservation, and reload safety) |
-| **`JsonPit`** | `{ RAI006, RAI008, RAI011, RAI012, RAI013, RAI014, RAI015 }` | Open-world sparse `Pit` and `PitItem` persistence, temporal merge, protected lifecycle attributes, `PitsCommand` gates, and `DateParseHandling.None` |
+| **`OsLib`** | `{ RAI001, RAI002, RAI003, RAI004, RAI005, RAI006, RAI007, RAI008, RAI009, RAI021 }` | Path algebra (`RaiPath`/`RaiRelPath`), file/directory objects (`RaiFile`/`TextFile`), typed `CliCommand` execution, and sacred `Os.Config` |
+| **`CloudSync`** | `{ RAI001, RAI002, RAI004, RAI007, RAI008, RAI011, RAI013, RAI014, RAI018, RAI019, RAI020, RAI021 }` | Cloud-drive replication invariants (`CR022` in-place writes, `CR040` sparse deltas, `CR033` canonical path reservation, and reload safety) |
+| **`JsonPit`** | `{ RAI006, RAI008, RAI011, RAI012, RAI013, RAI014, RAI015, RAI018, RAI019, RAI020 }` | Open-world sparse `Pit` and `PitItem` persistence, temporal merge, protected lifecycle attributes, `PitsCommand` gates, and `DateParseHandling.None` |
 | **`CliCommand`** | `{ RAI006, RAI013 }` | Typed `OsLib` CLI command execution (`PitsCommand`, `IorgCommand`, `RaidCommand`, `AmafuCommand`) and external CLI seed reload safety |
 | **`RaiMedia`** | `{ RAI006, RAI008, RAI016, RAI017 }` | `RaiUtils.WordCase` (`CR019`), `RaiImage` (`ImageNamingConvention.Structured`, `IorgCommand`), `RaiDiagram` (`DiagramBuilder` `baseItemId` per `CR025`, `RaidCommand`), and canonical `MediaUrls` (`RAI017`) |
 | **`Formatting`** | `{ RAI010 }` | Tab indentation (`\t`) and single-space token separation invariants |
 
-### Rule Catalog (`RAI001`–`RAI017`)
+### Selected Rules
 
 | Rule ID | Groups | Severity | Description | Remedy |
 |---------|--------|----------|-------------|--------|
@@ -349,8 +349,9 @@ Rules are numbered continuously (`RAI001`–`RAI017`) and organized into overlap
 | `RAI015` | `JsonPit` | Warning | Unexpanded `{...}`/`<...>` template placeholders in `PitItem` IDs (`CR049`) or `JObject.Parse` without `DateParseHandling.None` | Validate IDs before `new PitItem(id)` and parse JSON via `JsonFile` or `JsonReader` with `DateParseHandling.None` |
 | `RAI016` | `RaiMedia` | Warning | Obsolete `RaiImage.WordCase` (`CR019`), non-alphanumeric `DiagramBuilder` `baseItemId` (`CR025`), or non-`Structured` `ImageNamingConvention` | Use `RaiUtils.WordCase`, alphanumeric `baseItemId` without `_UCD`/`_CD` suffixes, and `ImageNamingConvention.Structured` |
 | `RAI017` | `RaiMedia` | Warning | Ad-hoc `/img/` media URL string composition or concatenation | Use canonical `MediaUrls.Video(...)`, `MediaUrls.Poster(...)`, or `MediaUrls.Image(...)` instead of manual formatting |
+| `RAI021` | `OsLib`, `CloudSync` | Warning | Test configuration substitution or mutation, and synthetic cloud configurations for inspection | Preserve the real configuration and resolve `TestCloud` from it; see [RAI021](ARCHITECTURE_RULES.md#rai021) for detection limits |
 
-For detailed *Before vs. After* code comparisons, architectural rationale (`CR019`, `CR022`, `CR025`, `CR033`, `CR040`, `CR049`), and the cross-repository empirical audit report, see [`ARCHITECTURE_RULES.md`](https://github.com/Burkhardt/RaiGuard/blob/main/ARCHITECTURE_RULES.md).
+Use `rail rules` for the complete catalog. For detailed *Before vs. After* code comparisons and architectural rationale, see [`ARCHITECTURE_RULES.md`](https://github.com/Burkhardt/RaiGuard/blob/main/ARCHITECTURE_RULES.md).
 
 ### Idiomatic Platform Patterns
 
