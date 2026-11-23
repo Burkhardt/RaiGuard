@@ -73,7 +73,7 @@ public static class Messages
 			new("--", Icons.Info.ToString(), "end options; following arguments are source paths"),
 			new("Paths", Icons.Folder.ToString(), "combine positional paths and repeated -p; overlapping files are inspected once"),
 			new("Exit codes", Icons.Info.ToString(), "check: 0 clean, 1 findings, 2 invalid input or incomplete scan (errors on stderr)"),
-			new($"{Icons.Info} Rules", Icons.Shield.ToString(), "RAI001..RAI020 across sets: OsLib, CloudSync, JsonPit, CliCommand, RaiMedia, Formatting")
+			new($"{Icons.Info} Rules", Icons.Shield.ToString(), "RAI001..RAI021 across sets: OsLib, CloudSync, JsonPit, CliCommand, RaiMedia, Formatting")
 		];
 		return CliHelpStyle.Rows(rows, useColor).ToArray();
 	}
