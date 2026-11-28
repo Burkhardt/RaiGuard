@@ -455,7 +455,7 @@ namespace JsonPit
 	}
 
 	[Fact]
-	public async Task RAI013_WhenPitDirExistsOrPitReload_EmitsDiagnostic()
+	public async Task RAI013_AllowsPitReload_On472Plus()
 	{
 		var testCode = @"
 namespace TestNamespace
@@ -473,7 +473,7 @@ namespace TestNamespace
 		{
 			if (userPit.{|#0:PitDir|}.Exists())
 			{
-				userPit.{|#1:Reload|}();
+				userPit.Reload();
 			}
 		}
 	}
@@ -484,12 +484,7 @@ namespace TestNamespace
 			.WithLocation(0)
 			.WithArguments("'userPit.PitDir.Exists' triggers a disk 'mkdir()' side effect via the 'PitDir' getter; use 'userPit.JsonFile.Path.Exists()' or 'userPit.JsonFile.Exists()' instead");
 
-		var expected1 = CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>
-			.Diagnostic("RAI013")
-			.WithLocation(1)
-			.WithArguments("'userPit.Reload()' invokes 'Save()' on dirty/merge branches and can overwrite external CLI seeds on disk; use 'userPit.Load()' for pure disk-to-memory reload");
-
-		await CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode, expected0, expected1);
+		await CSharpAnalyzerVerifier<RaiKeepArchitectureAnalyzer, DefaultVerifier>.VerifyAnalyzerAsync(testCode, expected0);
 	}
 
 	[Fact]

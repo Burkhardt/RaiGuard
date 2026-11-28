@@ -309,26 +309,9 @@ not as a way around client validation.
 
 ---
 
-### `RAI013` — Prohibit `pit.PitDir.Exists()` Side-Effect and `pit.Reload()` Overwrite Hazard
-- **Groups**: `JsonPit`, `CloudSync`, `CliCommand`
-- **Why Mainstream LLMs Fail**: LLMs write `if (pit.PitDir.Exists())` assuming a property getter is side-effect-free, and call `pit.Reload()` assuming it means "read latest changes from disk".
-- **Why It Breaks RAIkeep**:
-  1. `Pit.PitDir` (`JsonPit/Pit.cs:54-60`) executes `JsonFile.Path.mkdir()` inside the property getter—so checking `pit.PitDir.Exists()` **creates the directory on disk** before checking!
-  2. `Pit.Reload()` (`JsonPit/Pit.cs:528-550`) calls `Save()` on two of its three code paths, overwriting fresh external CLI (`pits` / `jpit`) seeds on disk with stale in-memory state.
-- **Before (Prohibited)**:
-  ```csharp
-  if (pit.PitDir.Exists())
-  {
-  	pit.Reload();
-  }
-  ```
-- **After (Idiomatic RAIkeep — Auto-Fixed by `rail fix`)**:
-  ```csharp
-  if (pit.JsonFile.Path.Exists())
-  {
-  	pit.Load();
-  }
-  ```
+### `RAI013` — Use a side-effect-free pit directory check
+
+Use `pit.JsonFile.Path.Exists()` to test existence. The `PitDir` getter creates the directory. JsonPit 4.7.2 and later reconcile pending edits during `Reload()`, so the analyzer permits that call.
 
 ---
 
@@ -431,7 +414,7 @@ Running `rail check` across the two internal production repositories (`../../AIA
 | **`RAI010`** | `Formatting` | 575 | 7,482 | Space indentation across `AIA` and `AfricaStage` (auto-fixable via `rail fix --rule RAI010` or `rail fix --group Formatting`) |
 | **`RAI011`** | `JsonPit`, `CloudSync` | 34 | 44 | `AIA`: `ExternalAcceptance.cs:198,219,244`, `ObjectInstantiator.cs:262`, `OpmConditionMigrator.cs:122`, `ConversationalAuthoring.cs:399`; `AfricaStage`: 14 in `ActivityController.cs`, `ObjectController.cs:815`, `SystemMethodExecutor.cs:197` (historical analyzer observations; CR077 reclassifies same-owner tracked live operations as supported) |
 | **`RAI012`** | `JsonPit` | 15 | 36 | `AfricaStage`: `OpmReasoner.cs:272` (`["Id"] = id` inside `ExtendWith`), `ChatTranscript.cs:75` (`new JObject { ["Id"] = ... }` passed to `ExtendWith`) |
-| **`RAI013`** | `JsonPit`, `CloudSync`, `CliCommand` | 0 | 0 | Preventative guard for `pit.PitDir.Exists()` `mkdir()` side-effect and `pit.Reload()` overwrite hazard (see `AfricaStage/Services/PitReloadService.cs:50-57`) |
+| **`RAI013`** | `JsonPit`, `CloudSync`, `CliCommand` | 0 | 0 | Preventative guard for `pit.PitDir.Exists()` `mkdir()` side-effect |
 | **`RAI014`** | `JsonPit`, `CloudSync` | 122 | 31 | 153 undisposed `new Pit(...)` instances across test suites and helper services leaking `ActiveCanonicalPitPaths` reservations |
 | **`RAI015`** | `JsonPit` | 86 | 58 | 144 calls to `JObject.Parse` / `JArray.Parse` / `JToken.Parse` with default `DateParseHandling.DateTime` |
 | **`RAI016`** | `RaiMedia` | 0 | 0 | Preventative guard for `RaiUtils.WordCase` (`CR019`), `DiagramBuilder` `baseItemId` (`CR025`), and `ImageNamingConvention.Structured` |

@@ -17,11 +17,11 @@ See the [CR078 implementation report](https://github.com/Burkhardt/RAIkeep/blob/
 for the exact contract, verification and local candidate instructions. Publication
 remains gated on independent consumer acceptance and Rainer's manual release.
 
-## Latest Version 4.7.2
+## Latest Version 4.7.3
 
 Show the executing machine as "on <machine>" in the CLI banner. Size both decorative rules to the complete heading, including the hostname; preserve bold cyan styling and plain redirected output. Apply the same heading to the grouped rule display.
 
-Latest release notes: [RaiGuard 4.7.2 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#472).
+Latest release notes: [RaiGuard 4.7.3 release notes](https://github.com/Burkhardt/RAIkeep/blob/main/doc/releases/v4.x/RaiGuard_RELEASE_NOTES_4.x.md#473).
 
 ## Previous Versions
 
@@ -65,7 +65,7 @@ sudo dotnet tool update RaiGuard --tool-path /usr/local/bin
 To enforce guardrails during `dotnet build` and in IDEs, add the analyzer package to your `.csproj` or repository `Directory.Build.props`:
 
 ```xml
-<PackageReference Include="RaiGuard.Analyzer" Version="4.7.2">
+<PackageReference Include="RaiGuard.Analyzer" Version="4.7.3">
   <PrivateAssets>all</PrivateAssets>
   <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 </PackageReference>
@@ -344,7 +344,7 @@ Rules are numbered continuously (`RAI001`–`RAI021`) and organized into overlap
 | `RAI010` | `Formatting` | Warning | Tab indentation required and consecutive spaces prohibited | Indent code with tabs (`\t`) and use single spaces between tokens outside string and character literals (`rail fix --rule RAI010`) |
 | `RAI011` | `JsonPit`, `CloudSync` | Warning | `Pit` full-snapshot read-modify-write (`CR040`) overwrites concurrent cloud-synced fields | Construct a sparse delta `var delta = new PitItem(id); delta.ExtendWith(patch); pit.Add(delta);` or mutate live properties on `pit.Get(id)` |
 | `RAI012` | `JsonPit` | Warning | Direct mutation of protected `PitItem` lifecycle attributes (`Id`, `Modified`, `Deleted`) | Use `new PitItem(id)`, `item.Delete()`, `item.Undel()`, and strip `Id`/`Modified`/`Deleted` from external `ExtendWith` payloads |
-| `RAI013` | `JsonPit`, `CloudSync`, `CliCommand` | Warning | `pit.PitDir.Exists()` triggers `mkdir()` on disk; `pit.Reload()` calls `Save()` and overwrites external seeds | Use `pit.JsonFile.Path.Exists()` for side-effect-free checks and `pit.Load()` to refresh external seeds |
+| `RAI013` | `JsonPit`, `CloudSync`, `CliCommand` | Warning | `pit.PitDir.Exists()` triggers `mkdir()` on disk | Use `pit.JsonFile.Path.Exists()` for side-effect-free checks |
 | `RAI014` | `JsonPit`, `CloudSync` | Warning | Undisposed `Pit` instance leaks `ActiveCanonicalPitPaths` reservation (`CR033`) | Wrap `new Pit(...)` in `using var pit = ...` or dispose the `_pit` field in `IDisposable.Dispose()` |
 | `RAI015` | `JsonPit` | Warning | Unexpanded `{...}`/`<...>` template placeholders in `PitItem` IDs (`CR049`) or `JObject.Parse` without `DateParseHandling.None` | Validate IDs before `new PitItem(id)` and parse JSON via `JsonFile` or `JsonReader` with `DateParseHandling.None` |
 | `RAI016` | `RaiMedia` | Warning | Obsolete `RaiImage.WordCase` (`CR019`), non-alphanumeric `DiagramBuilder` `baseItemId` (`CR025`), or non-`Structured` `ImageNamingConvention` | Use `RaiUtils.WordCase`, alphanumeric `baseItemId` without `_UCD`/`_CD` suffixes, and `ImageNamingConvention.Structured` |

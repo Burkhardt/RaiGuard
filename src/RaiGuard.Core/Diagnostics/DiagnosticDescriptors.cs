@@ -171,12 +171,12 @@ public static class DiagnosticDescriptors
 
 	public static readonly DiagnosticDescriptor ProhibitPitDirExistsAndReloadHazards = new(
 		id: "RAI013",
-		title: "Prohibit pit.PitDir.Exists() mkdir side-effect and pit.Reload() overwrite hazard",
+		title: "Prohibit pit.PitDir.Exists() mkdir side-effect",
 		messageFormat: "{0}",
 		category: JsonPitCategory,
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true,
-		description: "Pit.PitDir property getter executes mkdir() on disk as a side effect (use pit.JsonFile.Path.Exists() instead), and Pit.Reload() calls Save() which can overwrite external CLI seeds (use pit.Load() for pure disk reload).");
+		description: "Pit.PitDir property getter executes mkdir() on disk as a side effect (use pit.JsonFile.Path.Exists() instead).");
 
 	public static readonly DiagnosticDescriptor EnforcePitInstanceDisposal = new(
 		id: "RAI014",
@@ -294,7 +294,7 @@ public static class DiagnosticDescriptors
 		new RuleCatalogEntry("RAI010", EnforceWhitespaceFormatting, "Indent code with tabs ('\\t') and use single spaces between tokens", "Formatting"),
 		new RuleCatalogEntry("RAI011", ProhibitPitReadModifyWrite, "Create a minimal sparse delta ('var delta = new PitItem(id); delta.ExtendWith(patch); pit.Add(delta);') or mutate live properties directly ('pit[id][\"Prop\"] = val; pit.Save();')", "JsonPit", "CloudSync"),
 		new RuleCatalogEntry("RAI012", ProhibitProtectedPitItemMutation, "Update business fields through the live item; use RenameId or Delete for lifecycle transitions. Historical replay is not a client-validation workaround", "JsonPit"),
-		new RuleCatalogEntry("RAI013", ProhibitPitDirExistsAndReloadHazards, "Use pit.JsonFile.Path.Exists() instead of pit.PitDir.Exists(), and use pit.Load() instead of pit.Reload() for pure disk reloads", "JsonPit", "CloudSync", "CliCommand"),
+		new RuleCatalogEntry("RAI013", ProhibitPitDirExistsAndReloadHazards, "Use pit.JsonFile.Path.Exists() instead of pit.PitDir.Exists()", "JsonPit", "CloudSync", "CliCommand"),
 		new RuleCatalogEntry("RAI014", EnforcePitInstanceDisposal, "Wrap local Pit instances in 'using var pit = new Pit(...)' and call '_pit?.Dispose()' in IDisposable.Dispose()", "JsonPit", "CloudSync"),
 		new RuleCatalogEntry("RAI015", ProhibitInvalidPitIdAndUnsafeJsonParse, "Pass concrete validated IDs (without '{' or '<') to PitItem, and parse JSON with DateParseHandling.None (PitJson / RaidJson5)", "JsonPit"),
 		new RuleCatalogEntry("RAI016", EnforceRaiUtilsAndDiagramConventions, "Use RaiUtils.WordCase, ImageNamingConvention.Structured, and alphanumeric DiagramBuilder baseItemIds without '_' suffixes", "RaiMedia"),

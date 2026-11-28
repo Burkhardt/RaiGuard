@@ -76,9 +76,21 @@ internal static class TestConfigurationAnalysis
 			return false;
 		}
 
+		bool IsRoleParameter(LiteralExpressionSyntax literal)
+		{
+			if (!literal.Token.ValueText.Equals("cloud", StringComparison.OrdinalIgnoreCase) ||
+				literal.Parent?.Parent?.Parent is not ImplicitElementAccessSyntax index ||
+				index.Parent is not AssignmentExpressionSyntax assignment ||
+				assignment.Right is not MemberAccessExpressionSyntax role ||
+				role.Name.Identifier.ValueText is not ("TestCloud" or "LiveCloud")) return false;
+			var symbol = model?.GetSymbolInfo(role).Symbol;
+			return symbol != null ? symbol.ContainingType?.ToDisplayString() == "OsLib.Os"
+				: role.Expression.ToString() is "Os" or "OsLib.Os" or "global::OsLib.Os";
+		}
+
 		bool HasCloudConfiguration(SyntaxNode node) =>
 			node.DescendantNodesAndSelf().OfType<LiteralExpressionSyntax>()
-				.Any(literal => literal.Token.ValueText.IndexOf("Cloud", StringComparison.OrdinalIgnoreCase) >= 0);
+				.Any(literal => literal.Token.ValueText.IndexOf("Cloud", StringComparison.OrdinalIgnoreCase) >= 0 && !IsRoleParameter(literal));
 
 		foreach (var invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
 		{
@@ -114,6 +126,15 @@ internal static class TestConfigurationAnalysis
 			if ((creation.Type.ToString() is "ConfigurationDocument" or "JObject")
 				&& HasCloudConfiguration(creation))
 				report(creation.GetLocation(), "Review synthetic cloud configuration; tests must not replace the real configuration.");
+			else if ((creation.Type is QualifiedNameSyntax qualified ? qualified.Right : creation.Type)
+				is GenericNameSyntax { Identifier.ValueText: "Dictionary" } && creation.Initializer != null)
+			{
+				foreach (var entry in creation.Initializer.Expressions.OfType<AssignmentExpressionSyntax>())
+					if (entry.Left is ImplicitElementAccessSyntax index && index.ArgumentList.Arguments.Count == 1 &&
+						index.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax key &&
+						key.Token.ValueText == "cloud" && !IsRoleParameter(key))
+						report(entry.GetLocation(), "Review the cloud provider supplied by this test fixture.");
+			}
 		}
 
 		foreach (var assignment in root.DescendantNodes().OfType<AssignmentExpressionSyntax>())

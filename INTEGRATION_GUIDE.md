@@ -109,7 +109,7 @@ When you open any project referencing `RaiGuard.Analyzer` in VS Code with the of
    - Pressing `Cmd+.` (macOS) or `Ctrl+.` (Windows/Linux) invokes the automated code-fix provider:
      - Automatically rewrites `Path.Combine(root, "sub")` into `new RaiPath(root) / "sub"`.
      - Appends the required trailing `/` to `new RaiPath("...")` string literals (`RAI004`).
-     - Rewrites `pit.PitDir.Exists()` to `pit.JsonFile.Path.Exists()` and `pit.Reload()` to `pit.Load()` (`RAI013`).
+     - Rewrites `pit.PitDir.Exists()` to `pit.JsonFile.Path.Exists()` (`RAI013`).
      - Rewrites `RaiImage.WordCase` to `RaiUtils.WordCase` (`RAI016`).
      - Automatically adds `using OsLib;` or `using RaiUtils;` to the file header if not already present.
 
@@ -212,7 +212,7 @@ rail fix --group Formatting
 - Path composition rewrites to operator `/` (`RAI003`) and trailing slash fixes on `new RaiPath("...")` (`RAI004`).
 - Directory and file operation rewrites to `RaiPath`, `new TextFile(...)`, and `new RaiFile(...)` (`RAI001`, `RAI002`).
 - Tab indentation and interior consecutive space normalization (`RAI010`).
-- `Pit` side-effect-free existence and load rewrites (`RAI013`) and `RaiUtils.WordCase` canonicalization (`RAI016`).
+- `Pit` side-effect-free existence checks (`RAI013`) and `RaiUtils.WordCase` canonicalization (`RAI016`).
 - Automatic insertion of `using OsLib;`.
 
 For file-size reads, RAI002 compilation warnings explicitly recommend
@@ -274,7 +274,7 @@ jobs:
 | **`RAI010`** | `Formatting` | Warning | Enforce tab indentation and prohibit consecutive spaces | Indent exclusively with tabs (`\t`); single space between tokens outside string literals (`rail fix --rule RAI010`) |
 | **`RAI011`** | `JsonPit`, `CloudSync` | Warning | Prohibit `Pit` full-snapshot read-modify-write (`CR040`) | Construct a sparse delta `var delta = new PitItem(id); delta.ExtendWith(patch); pit.Add(delta);` or mutate live properties on `pit.Get(id)` |
 | **`RAI012`** | `JsonPit` | Warning | Prohibit direct mutation of protected `PitItem` lifecycle attributes (`Id`, `Modified`, `Deleted`) | Use `new PitItem(id)`, `item.Delete()`, `item.Undel()`, and strip `Id`/`Modified`/`Deleted` from external `ExtendWith` payloads |
-| **`RAI013`** | `JsonPit`, `CloudSync`, `CliCommand` | Warning | Prohibit `pit.PitDir.Exists()` side-effect and `pit.Reload()` overwrite hazard | Use `pit.JsonFile.Path.Exists()` for side-effect-free checks and `pit.Load()` to refresh external seeds |
+| **`RAI013`** | `JsonPit`, `CloudSync`, `CliCommand` | Warning | Prohibit `pit.PitDir.Exists()` side-effect | Use `pit.JsonFile.Path.Exists()` for side-effect-free checks |
 | **`RAI014`** | `JsonPit`, `CloudSync` | Warning | Require `Pit` disposal (`CR033`) | Wrap `new Pit(...)` in `using var pit = ...` or dispose `_pit` in `IDisposable.Dispose()` |
 | **`RAI015`** | `JsonPit` | Warning | Prohibit unexpanded `{...}`/`<...>` placeholders in `PitItem` IDs (`CR049`) and unsafe `JObject.Parse` | Validate IDs before `new PitItem(id)` and parse JSON via `JsonFile` or `JsonReader` with `DateParseHandling.None` |
 | **`RAI016`** | `RaiMedia` | Warning | Enforce `RaiUtils.WordCase` (`CR019`), alphanumeric `DiagramBuilder` `baseItemId` (`CR025`), and `ImageNamingConvention.Structured` | Use `RaiUtils.WordCase`, alphanumeric `baseItemId` without `_UCD`/`_CD` suffixes, and `ImageNamingConvention.Structured` |

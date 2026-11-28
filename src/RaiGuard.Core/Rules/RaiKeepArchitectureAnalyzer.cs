@@ -353,7 +353,7 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 				}
 			}
 
-			// RAI013: pit.PitDir.Exists() side effect and pit.Reload() hazard
+			// RAI013: pit.PitDir.Exists() side effect
 			if (MatchesRule("RAI013"))
 			{
 				if (methodName == "Exists" &&
@@ -365,13 +365,6 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 						DiagnosticDescriptors.ProhibitPitDirExistsAndReloadHazards,
 						innerMa.Name.GetLocation(),
 						$"'{ma}' triggers a disk 'mkdir()' side effect via the 'PitDir' getter; use '{innerMa.Expression}.JsonFile.Path.Exists()' or '{innerMa.Expression}.JsonFile.Exists()' instead");
-				}
-				else if (methodName == "Reload" && args.Count == 0 && IsLikelyPitReceiver(ma.Expression))
-				{
-					AddFinding(
-						DiagnosticDescriptors.ProhibitPitDirExistsAndReloadHazards,
-						ma.Name.GetLocation(),
-						$"'{ma}()' invokes 'Save()' on dirty/merge branches and can overwrite external CLI seeds on disk; use '{ma.Expression}.Load()' for pure disk-to-memory reload");
 				}
 			}
 
@@ -1106,14 +1099,6 @@ public sealed class RaiKeepArchitectureAnalyzer : DiagnosticAnalyzer
 			name.StartsWith("tmpFile", StringComparison.OrdinalIgnoreCase) ||
 			name.StartsWith("tempFile", StringComparison.OrdinalIgnoreCase) ||
 			name.StartsWith("workingOutput", StringComparison.OrdinalIgnoreCase);
-	}
-
-	private static bool IsLikelyPitReceiver(ExpressionSyntax expr)
-	{
-		var name = ExtractLastIdentifier(expr).TrimStart('_');
-		return name.Equals("pit", StringComparison.OrdinalIgnoreCase) ||
-			name.EndsWith("Pit", StringComparison.Ordinal) ||
-			name is "Person" or "Object" or "Place" or "Activity";
 	}
 
 	private static bool ContainsMediaUrlPattern(string text)

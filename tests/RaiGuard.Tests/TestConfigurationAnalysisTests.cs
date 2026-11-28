@@ -22,6 +22,24 @@ public sealed class TestConfigurationAnalysisTests
 		compilation.SyntaxTrees.SelectMany(tree => RaiKeepArchitectureAnalyzer.AnalyzeSyntaxRoot(
 			tree, "RAI021", semanticModel: compilation.GetSemanticModel(tree))).ToList();
 
+	[Theory]
+	[InlineData("Os.TestCloud", 0)]
+	[InlineData("Os.LiveCloud", 0)]
+	[InlineData("\"OneDrive\"", 1)]
+	public void RAI021_AllowsExecCloudParam_WhenValueFromOsTestCloud(string value, int count)
+	{
+		foreach (var initializerType in new[] { "JObject", "System.Collections.Generic.Dictionary<string, object>" })
+		{
+			var compilation = Compile($$"""
+using OsLib;
+namespace OsLib { static class Os { public static string TestCloud => ""; public static string LiveCloud => ""; } }
+class JObject : System.Collections.Generic.Dictionary<string, object> { }
+class ExecTests { object Seed() => new {{initializerType}} { ["cloud"] = {{value}} }; }
+""");
+			Assert.Equal(count, Findings(compilation).Count);
+		}
+	}
+
 	[Fact]
 	public async Task DetectsConfigurationOverridesInCliAndCompiler()
 	{
